@@ -52,11 +52,10 @@ async def search_sonarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text="You have not configured a server.Exiting."
         )
         return ConversationHandler.END
-    sonarr = SonarrApi(**sonarr_config)
-    shows = sonarr.search(query_str)
+    context.user_data['sonarr'] = SonarrApi(**sonarr_config)
     context.user_data['show_cache'] = {}
     buttons = []
-    for show in shows[0:20]:
+    for show in context.user_data['sonarr'].search(query_str)[0:20]:
         show_id = str(show['tvdbId'])
         context.user_data['show_cache'][show_id] = show
         buttons.append(InlineKeyboardButton(show["title"], callback_data=f"add_show_{show_id}"))
@@ -87,7 +86,21 @@ async def show_clicked(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def confirm_show_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    pass
+    query = update.callback_query
+    await query.answer()
+    show_id = str(query.data.split('_')[-1])
+    show = context.user_data['show_cache'].get(show_id)
+    del context.user_data['show_cache']
+    await context.bot.send_message(text='Adding Show!', chat_id=update.effective_chat.id)
+    success, msg = context.user_data['sonarr'].add_show(show, update.effective_user.id)
+    if success:
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text='Successfully added shows. Trying to search for the latest season now')
+        # context.user_data['sonarr'].search_for_episodes()
+    else:
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=f"The show couldn't be added: {msg}")
+
+    return ConversationHandler.END
 
 
 async def rm_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -113,7 +126,7 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(show_clicked, pattern="^add_show_[0-9]+$")
         ],
         CONFIRM_SHOW: [
-            CallbackQueryHandler(confirm_show_add, pattern="^confirm_show_[0-9]+$"),
+            CallbackQueryHandler(confirm_show_add, pattern="^confirm_[0-9]+$"),
             CallbackQueryHandler(show_clicked, pattern="^add_show_[0-9]+$")
         ]
     },
