@@ -92,11 +92,13 @@ async def confirm_show_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     show = context.user_data['show_cache'].get(show_id)
     del context.user_data['show_cache']
     await context.bot.send_message(text='Adding Show!', chat_id=update.effective_chat.id)
-    success, msg = context.user_data['sonarr'].add_show(show, update.effective_user.id)
+    success, msg, res = context.user_data['sonarr'].add_show(show, update.effective_user.id)
     if success:
         await context.bot.send_message(chat_id=update.effective_chat.id,
                                        text='Successfully added shows. Trying to search for the latest season now')
-        # context.user_data['sonarr'].search_for_episodes()
+        context.user_data['sonarr'].search_for_episodes(res.get("id"))
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text='Episode searching is underway')
     else:
         await context.bot.send_message(chat_id=update.effective_chat.id, text=f"The show couldn't be added: {msg}")
 

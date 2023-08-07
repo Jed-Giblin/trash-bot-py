@@ -25,7 +25,7 @@ class SonarrApi:
         uri = f'https://{self._host}{path}'
         res = requests.post(uri, params={"apiKey": self._api_key}, json=body)
         if res.status_code >= 400:
-            #TODO - Convert to logging
+            # TODO - Convert to logging
             print(f'Got Status Code: {res.status_code} when POSTing to {uri}')
             print(f'Got Body: {res.json()}')
             if res.status_code == 400:
@@ -52,6 +52,10 @@ class SonarrApi:
         else:
             return [self.create_tag(tag)]
 
+    def search_for_episodes(self, series_id):
+        res = self.__post('/api/command', body={'name': 'SeriesSearch', 'seriesId': series_id})
+        return res.json()
+
     def _add_show(self, show, seasons, tags):
         body = {
             'tvdbId': show.get("tvdbId"),
@@ -65,14 +69,16 @@ class SonarrApi:
             'tags': tags,
             'addOptions': {'ignoreEpisodesWithoutFiles': False, 'ignoreEpisodesWithFiles': False}
         }
-        if self.__post('/api/series', body=body):
-            return True
-        return False
+        res = self.__post('/api/series', body=body)
+        if res:
+            return True, res.json()
+        return False, {}
 
     def add_show(self, show, user_id):
         seasons = manage_seasons(show.get("seasons"))
         tags = self.manage_tags(f'tg:{user_id}')
         try:
-            return self._add_show(show, seasons, tags), 'ok'
+            success, res = self._add_show(show, seasons, tags)
+            return success, 'ok', res
         except Exception as ex:
-            return False, ex
+            return False, ex, {}
