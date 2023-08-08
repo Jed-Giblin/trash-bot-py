@@ -12,7 +12,7 @@ load_dotenv()
 
 
 def main():
-    modules = ['sonarr_manager', 'setup_manager', 'trash']
+    modules = ['sonarr_manager', 'setup_manager', 'trash', 'radarr_manager']
     app = ApplicationBuilder().token(os.environ.get("TOKEN")).build()
     for mod in modules:
         module = importlib.import_module(f'modules.{mod}')
@@ -21,7 +21,6 @@ def main():
 
         elif module.MOD_TYPE == ModTypes.COMMAND_DRIVEN:
             app.add_handlers(module.HANDLERS)
-
 
     try:
         app.run_polling(allowed_updates=Update.ALL_TYPES)

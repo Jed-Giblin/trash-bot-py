@@ -94,7 +94,7 @@ async def add_radarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Please provide a hostname for your server"
+        text="Please provide a hostname for your Radarr server"
     )
 
     return ADD_RADARR_HOSTNAME
@@ -105,9 +105,9 @@ async def add_radarr_hostname(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['tmp_radarr_hostname'] = hostname
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Please provide an API token for your server"
+        text="Please provide an API token for your radarr server"
     )
-    return ADD_SONARR_TOKEN
+    return ADD_RADARR_TOKEN
 
 
 async def add_radarr_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
