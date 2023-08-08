@@ -6,3 +6,8 @@ def manage_seasons(seasons):
     edited_seasons = [{**season, **SEASON_UPDATE} for season in sorted_seasons]
     edited_seasons[-1]['monitored'] = True
     return edited_seasons
+
+
+class ModTypes:
+    CONVERSATION = 1
+    COMMAND_DRIVEN = 2

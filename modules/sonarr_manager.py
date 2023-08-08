@@ -3,6 +3,9 @@ from telegram.ext import ContextTypes, Application, ConversationHandler, Command
     MessageHandler, filters
 from modules.db import db as mydb
 from modules.sonarr_api import SonarrApi
+from modules.utils import ModTypes
+
+MOD_TYPE = ModTypes.CONVERSATION
 
 COMMAND = 'shows'
 START = 1
@@ -18,13 +21,18 @@ MANAGE_SHOW = 23
 
 
 async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        await update.message.reply_text(
+            "That's only allowed in private chats.", quote=True
+        )
+        return ConversationHandler.END
     reply_keyboard = [
         [InlineKeyboardButton("Add Shows", callback_data="add_shows")],
         [InlineKeyboardButton("Manage Shows", callback_data="list_user_shows")],
     ]
     reply_markup = InlineKeyboardMarkup(reply_keyboard)
     await update.message.reply_text(
-        "Please select an action",
+        "Please select an action", quote=True,
         reply_markup=reply_markup
     )
     return START

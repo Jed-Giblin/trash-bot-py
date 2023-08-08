@@ -5,6 +5,9 @@ from telegram.ext import ContextTypes, Application, ConversationHandler, Command
     MessageHandler, filters
 from modules.db import UnallowedBlankValue
 from modules.db import db as mydb
+from modules.utils import ModTypes
+
+MOD_TYPE = ModTypes.CONVERSATION
 
 COMMAND = "setup"
 
