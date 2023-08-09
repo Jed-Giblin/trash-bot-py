@@ -103,6 +103,7 @@ class SonarrApi:
             'RootFolderPath': '/tv',
             'seasonFolder': True,
             'tags': tags,
+            'monitored': True,
             'addOptions': {'ignoreEpisodesWithoutFiles': False, 'ignoreEpisodesWithFiles': False}
         }
         res = self.__post('/api/series', body=body)
