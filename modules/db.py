@@ -26,7 +26,7 @@ class Db:
         self.timer.start()
 
     def setup_saver(self):
-        self.timer = threading.Timer(30.0, self.setup_saver)
+        self.timer = threading.Timer(30.0, self.save)
         self.timer.start()
 
     def save(self):
