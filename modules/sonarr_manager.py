@@ -145,6 +145,7 @@ async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     btns = [InlineKeyboardButton(text=s['title'], callback_data=f'manage_{s["id"]}') for s in
             context.user_data['sonarr'].search_existing_shows_by_tag(f'tg:{update.effective_user.id}')]
+    btns.append(InlineKeyboardButton(text="Quit! (not a show)", callback_data=f'quit'))
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="Please choose a show to manage",
@@ -236,6 +237,7 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(show_clicked, pattern="^add_show_[0-9]+$")
         ],
         CHOOSE_SHOW_TO_MANAGE: [
+            CallbackQueryHandler(stop, pattern="^quit$"),
             CallbackQueryHandler(manage_show_menu, pattern="^manage_[0-9]+$"),
         ],
         MANAGE_SHOW: [

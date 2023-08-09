@@ -114,14 +114,14 @@ async def confirm_movie_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
     movie_id = str(query.data.split('_')[-1])
     movie = context.user_data['movie_cache'][movie_id]
-    success, msg = context.user_data['radarr'].add_movie(movie, str(update.effective_chat.id))
-    if success:
+    try:
+        context.user_data['radarr'].add_movie(movie, str(update.effective_chat.id))
         await context.bot.send_message(
             text='Movie added', chat_id=update.effective_chat.id
         )
-    else:
+    except ValueError as ex:
         await context.bot.send_message(
-            text='Unable to add movie', chat_id=update.effective_chat.id
+            text=f'Unable to add movie. {ex}', chat_id=update.effective_chat.id
         )
     return ConversationHandler.END
 
