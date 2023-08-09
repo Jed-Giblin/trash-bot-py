@@ -46,10 +46,20 @@ async def add_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Whats the show name you want to add?"
+        text="Whats the show name you want to add?",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Quit", callback_data="quit")]])
     )
 
     return NEW_SHOW_SEARCH
+
+
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # TODO - Empty context
+    await update.callback_query.answer()
+    await context.bot.send_message(
+        text='Goodbye!', chat_id=update.effective_chat.id
+    )
+    return ConversationHandler.END
 
 
 async def search_sonarr_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -215,6 +225,7 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(list_user_shows, pattern="^list_user_shows"),
         ],
         NEW_SHOW_SEARCH: [
+            CallbackQueryHandler(stop, pattern="^quit$"),
             MessageHandler(filters=filters.TEXT, callback=search_sonarr_new)
         ],
         SHOW_PICKER: [
