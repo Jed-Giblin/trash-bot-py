@@ -48,7 +48,10 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def manage_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    pass
+    await context.bot.send_message(
+        text='Sorry, I haven"t set this up yet', chat_id=update.effective_chat.id
+    )
+    return ConversationHandler.END
 
 
 async def add_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
