@@ -25,6 +25,12 @@ ADD_SUCCESS = 'Your server has been configured. You can use the following code t
 
 
 async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.effective_chat.type != "private":
+        await update.message.reply_text(
+            "That's only allowed in private chats.", quote=True
+        )
+        return ConversationHandler.END
+
     reply_keyboard = [
         [
             InlineKeyboardButton("Add Sonarr", callback_data="add_sonarr"),
