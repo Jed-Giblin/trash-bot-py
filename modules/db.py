@@ -23,12 +23,13 @@ class Db:
 
         self.migrate()
         self.timer = threading.Timer(30.0, self.setup_saver)
+        print(self.timer)
         self.timer.start()
 
     def setup_saver(self):
-        print("Starting timer to save DB")
-        self.timer = threading.Timer(30.0, self.save)
+        self.timer = threading.Timer(30.0, self.setup_saver)
         self.timer.start()
+        self.save()
 
     def save(self):
         print("Saving DB")
