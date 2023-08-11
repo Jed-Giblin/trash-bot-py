@@ -26,10 +26,12 @@ class Db:
         self.timer.start()
 
     def setup_saver(self):
+        print("Starting timer to save DB")
         self.timer = threading.Timer(30.0, self.save)
         self.timer.start()
 
     def save(self):
+        print("Saving DB")
         with open(self._dbf, 'w') as fh:
             fh.write(json.dumps(self.db))
 
