@@ -69,6 +69,19 @@ class Db:
             self.__set_user_share(uid)
         return self.db['users'][uid]['share']
 
+    def get_group(self, group_id):
+        if group_id in self.db.get('groups'):
+            return self.db['groups'][str(group_id)]
+        return None
+
+    def save_group(self, group_id, **kwargs):
+        if group_id not in self.db.get('groups'):
+            self.db['groups'][group_id] = {}
+
+        self.db['groups'][group_id].update(kwargs)
+        self.save()
+        return self.db['groups'][group_id]
+
     def __set_user_share(self, user_id):
         self.db['users'][user_id]['share'] = binascii.b2a_hex(os.urandom(8)).decode()
 
