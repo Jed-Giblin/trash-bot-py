@@ -18,9 +18,11 @@ import uuid
 
 MOD_TYPE = ModTypes.CONVERSATION
 
+NAME = 0
 QUESTION = 1
 CHOICES = 2
-CRON = 3
+DAYS_OF_WEEK = 3
+TIME = 4
 
 
 async def poll(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -33,39 +35,6 @@ async def poll(context: ContextTypes.DEFAULT_TYPE) -> None:
         is_anonymous=False,
         allows_multiple_answers=False,
     )
-
-
-async def start_weekly_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Simple schedule to run a poll every Tuesday at noon"""
-    chat_id = update.effective_message.chat_id
-    try:
-        job_removed = remove_job_if_exists(str(chat_id), context)
-        job = context.job_queue.run_daily(
-            callback=poll,
-            time=datetime.time(hour=16),
-            days=(2,),
-            chat_id=chat_id,
-            name=str(chat_id),
-            data={
-                'options': ["Yes", "No", "Maybe"],
-                'question': 'Office Wednesday?'
-            }
-        )
-        text = "Schedule will run every Tuesday around noon!"
-        if job_removed:
-            text += " Old one was removed."
-        await update.effective_message.reply_text(text)
-        await job.run(context.application)
-    except (IndexError, ValueError):
-        await update.effective_message.reply_text("Oops! That didn't work.")
-
-
-async def stop_weekly_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """Remove the job if the user changed their mind."""
-    chat_id = update.message.chat_id
-    job_removed = remove_job_if_exists(str(chat_id), context)
-    text = "Poll schedule successfully removed!" if job_removed else "You have no active poll schedule."
-    await update.message.reply_text(text)
 
 
 def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
@@ -83,9 +52,22 @@ async def schedule_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
     reply_keyboard = [[]]
 
     await update.message.reply_text(
-        "Please submit the question for your poll.",
+        "Please enter a name for your poll.",
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder="When should we do that thing?"
+        ),
+    )
+
+    return NAME
+
+
+async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['shared_data'] = {'name': update.message.text}
+    reply_keyboard = [[]]
+    await update.message.reply_text(
+        f"Please enter the poll question",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, input_field_placeholder=""
         ),
     )
 
@@ -93,11 +75,10 @@ async def schedule_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 
 async def question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    print(update.message.text)
-    context.user_data['shared_data'] = {'question': update.message.text}
+    context.user_data['shared_data']['question'] = update.message.text
     reply_keyboard = [[]]
     await update.message.reply_text(
-        f"Now enter your comma separated poll options.",
+        f"Now enter your comma separated poll answers.",
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder=""
         ),
@@ -107,36 +88,45 @@ async def question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 
 async def choices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    print(update.message.text)
-    context.user_data['shared_data']['choices'] = update.message.text.split(',')
+    context.user_data['shared_data']['answers'] = update.message.text.split(',')
     reply_keyboard = [[]]
 
     await update.message.reply_text(
-        "Enter your cron schedule for the poll. Ex: 0 12 * * 2",
+        "Enter comma separated days of the week you want it to run. Where 0-6 is Sun-Sat",
         reply_markup=ReplyKeyboardMarkup(
             reply_keyboard, one_time_keyboard=True, input_field_placeholder=""
         ),
     )
-    return CRON
+    return DAYS_OF_WEEK
 
 
-async def cron(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
-    print(update.message.text)
-    await update.message.reply_text("Got it!")
-    context.user_data['shared_data']['cron'] = str(update.message.text)
+async def days_of_week(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['shared_data']['days_of_week'] = update.message.text.split(',')
+    reply_keyboard = [[]]
 
+    await update.message.reply_text(
+        "Enter the utc time you want it to run as HH:MM. Ex: 16:30 for 4:30PM",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, input_field_placeholder=""
+        ),
+    )
+    return TIME
+
+
+async def time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['shared_data']['time'] = update.message.text
     chat_id = str(update.effective_message.chat_id)
     if not mydb.get_group(chat_id):
         mydb.db['groups'] = {chat_id: {}}
     if 'polls' not in mydb.db['groups'][chat_id]:
         mydb.db['groups'][chat_id] = {'polls': []}
-    uid = update.message.from_user.id
-    if uid not in mydb.db['groups'][chat_id]['polls']:
-        mydb.db['groups'][chat_id]['polls'] = {uid: []}
     # Save the poll for the user in the group
-    mydb.db['groups'][chat_id]['polls'][uid].append(context.user_data['shared_data'])
-    # mydb.db.save_group(group_id=chat_id, **mydb.db['groups'][chat_id])
-    return CRON
+    mydb.db['groups'][chat_id]['polls'].append(context.user_data['shared_data'])
+    mydb.save_group(group_id=chat_id, **mydb.db['groups'][chat_id])
+
+    await update.message.reply_text("Your automated poll has been created.")
+
+    return ConversationHandler.END
 
 
 async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
@@ -153,9 +143,11 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 CONVERSATION = ConversationHandler(
     entry_points=[CommandHandler("schedule_poll", schedule_poll)],
     states={
+        NAME: [MessageHandler(filters.TEXT, name)],
         QUESTION: [MessageHandler(filters.TEXT, question)],
         CHOICES: [MessageHandler(filters.TEXT, choices)],
-        CRON: [MessageHandler(filters.TEXT, cron)],
+        DAYS_OF_WEEK: [MessageHandler(filters.TEXT, days_of_week)],
+        TIME: [MessageHandler(filters.TEXT, time)],
 
     },
     fallbacks=[CommandHandler("cancel", cancel)],
@@ -163,11 +155,28 @@ CONVERSATION = ConversationHandler(
 
 
 async def load_schedules(context: ContextTypes.DEFAULT_TYPE):
-    print("In this method, cycle through the jobs defined in the DB")
-    print("As you do, add them to the job queue with appropriate frequency")
-    print("I would probably change how you gather the job data and save it something like")
-    print( "{ groups: { 123123123: { polls: [ { 'name': 'Dumb', 'Question': '', 'Answers': [], 'days_of_week': [], 'time': ''")
-    print(context.job_queue.jobs())
+    for group_id in mydb.db['groups']:
+        for poll in mydb.db['groups'][group_id].get('polls', []):
+            job_id = f'{group_id}_{poll.get("name")}'
+            hour, minute = poll.get('time').split(':')
+            try:
+                remove_job_if_exists(job_id, context)
+                context.job_queue.run_daily(
+                    callback=poll,
+                    time=datetime.time(hour=int(hour), minute=int(minute)),
+                    days=[int(d) for d in poll.get('days_of_week')],
+                    chat_id=group_id,
+                    name=job_id,
+                    data={
+                        'options': poll.get('answers'),
+                        'question': poll.get('question')
+                    }
+                )
+
+            except (IndexError, ValueError):
+                print('Oops!')
+    for j in context.job_queue.jobs():
+        print(j.next_t)
 
 
 LOAD_FROM_DB = load_schedules
