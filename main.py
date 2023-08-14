@@ -22,6 +22,11 @@ def main():
         elif module.MOD_TYPE == ModTypes.COMMAND_DRIVEN:
             app.add_handlers(module.HANDLERS)
 
+        try:
+            app.job_queue.run_once(module.LOAD_FROM_DB, 5)
+        except AttributeError:
+            pass
+
     try:
         app.run_polling(allowed_updates=Update.ALL_TYPES)
     except Exception as ex:

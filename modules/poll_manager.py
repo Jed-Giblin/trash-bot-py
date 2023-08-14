@@ -160,3 +160,14 @@ CONVERSATION = ConversationHandler(
     },
     fallbacks=[CommandHandler("cancel", cancel)],
 )
+
+
+async def load_schedules(context: ContextTypes.DEFAULT_TYPE):
+    print("In this method, cycle through the jobs defined in the DB")
+    print("As you do, add them to the job queue with appropriate frequency")
+    print("I would probably change how you gather the job data and save it something like")
+    print( "{ groups: { 123123123: { polls: [ { 'name': 'Dumb', 'Question': '', 'Answers': [], 'days_of_week': [], 'time': ''")
+    print(context.job_queue.jobs())
+
+
+LOAD_FROM_DB = load_schedules
