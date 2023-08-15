@@ -56,6 +56,7 @@ async def schedule_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         "Please enter a name for your poll.",
         reply_markup=ForceReply(selective=True),
     )
+    print(update.effective_message.chat_id)
 
     return NAME
 
@@ -117,35 +118,43 @@ async def time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def timezone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['shared_data']['timezone'] = update.message.text
-    chat_id = str(update.effective_message.chat_id)
-    if not mydb.get_group(chat_id):
-        mydb.db['groups'] = {chat_id: {}}
-    if 'polls' not in mydb.db['groups'][chat_id]:
-        mydb.db['groups'][chat_id] = {'polls': []}
-
     btns = []
-    # We need to update our DB logic to ALWAYS save the chat as a blank dict the first time the bot is used in that chat
+    # TODO update our DB logic to ALWAYS save the chat as a blank dict the first time the bot is used in that chat
     for chat in mydb.get_chat_list():
         if await context.bot.getChatMember(chat_id=chat, user_id=update.message.from_user.id):
             full_chat = await context.bot.get_chat(chat_id=chat)
-            # Fullchat .title works in group chats / super chats, not priv convos
-            btns.append(InlineKeyboardButton(full_chat.title, callback_data=f'sc_{chat}'))
+            if full_chat.type == "private":
+                continue
+            else:
+                slug = full_chat.title
+            btns.append(InlineKeyboardButton(slug, callback_data=f'sc_{chat}'))
     markup = [[btn] for btn in btns]
+    if len(btns) == 0:
+        await update.message.reply_text(
+            text='It appears we are not in any chats together. Add me to the chat and do this process again.'
+        )
+        return ConversationHandler.END
     await update.message.reply_text(
         text='Please select a chat from the list to use',
         reply_markup=InlineKeyboardMarkup(markup)
     )
-    # Save the poll for the user in the group
-    mydb.db['groups'][chat_id]['polls'].append(context.user_data['shared_data'])
-    mydb.save_group(group_id=chat_id, **mydb.db['groups'][chat_id])
 
     return GROUP_CHAT
 
 
 async def choose_poll_post_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.callback_query.answer()
+    chat_id = str(update.callback_query.data.split('_')[-1])
+    if not mydb.get_group(chat_id):
+        mydb.db['groups'] = {chat_id: {}}
+    if 'polls' not in mydb.db['groups'][chat_id]:
+        mydb.db['groups'][chat_id] = {'polls': []}
+
+    # Save the poll for the user in the group
+    mydb.db['groups'][chat_id]['polls'].append(context.user_data['shared_data'])
+    mydb.save_group(group_id=chat_id, **mydb.db['groups'][chat_id])
+
     await update.callback_query.message.reply_text(
-        text='Got it. Consider it done. Hoy will need to add the code to save the new field here which means the chat ID selected from the callback'
+        text=f'Got it. Your poll will kick off in the group chat you selected.'
     )
     return ConversationHandler.END
 
@@ -198,9 +207,9 @@ async def load_schedules(context: ContextTypes.DEFAULT_TYPE):
                 )
 
             except (IndexError, ValueError):
-                print('Oops!')
+                print(f'Oops! I couldn\'t add the job {job_id} on startup.')
     for j in context.job_queue.jobs():
-        print(j.next_t)
+        print(f'Job: {j.name} will run at {j.next_t}')
 
 
 LOAD_FROM_DB = load_schedules
