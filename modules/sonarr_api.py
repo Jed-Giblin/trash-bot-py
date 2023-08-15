@@ -76,8 +76,7 @@ class SonarrApi:
         detail = self.__get(f'/api/v3/tag/detail/{tags.get("id")}').json()
         if not detail:
             return []
-        series = [ series for series in self.__get(f'/api/v3/series').json() if series["id"] in detail['seriesIds'] ]
-        print(len(series))
+        series = [series for series in self.__get(f'/api/v3/series').json() if series["id"] in detail['seriesIds']]
         return series
 
     def search_for_episodes(self, series_id):
@@ -103,6 +102,7 @@ class SonarrApi:
             'RootFolderPath': '/tv',
             'seasonFolder': True,
             'tags': tags,
+            'monitored': True,
             'addOptions': {'ignoreEpisodesWithoutFiles': False, 'ignoreEpisodesWithFiles': False}
         }
         res = self.__post('/api/series', body=body)

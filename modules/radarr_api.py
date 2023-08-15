@@ -41,6 +41,38 @@ class RadarrApi:
             raise ValueError("There was a failure communicating with the server")
         return res
 
+    def get_url(self, url):
+        return f'https://{self._host}{url}'
+
     def search_new_movies(self, search_str):
         res = self.__get('/api/v3/movie/lookup', params={'term': search_str}).json()
         return res
+
+    def create_tag(self, tag):
+        body = {"label": tag}
+        return self.__post('/api/v3/tag', body=body).json().get("id")
+
+    def manage_tags(self, tag):
+        tags = next(filter(lambda x: x.get("label") == tag,
+                           self.__get('/api/v3/tag').json()), None)
+
+        if tags:
+            return [tags.get("id")]
+        else:
+            return [self.create_tag(tag)]
+
+    def _add_movie(self, movie, tags):
+        movie["tags"] = tags
+        movie['rootFolderPath'] = '/movies'
+        movie['qualityProfileId'] = 1
+        movie['monitored'] = True
+        movie['addOptions'] = { 'searchForMovie': True, 'monitor': 'movieOnly'}
+        r = self.__post('/api/v3/movie', body=movie)
+        if r:
+            return True, 'ok'
+        return False, r.text
+
+    def add_movie(self, movie, user):
+        tags = self.manage_tags(f'tg:{user}')
+
+        return self._add_movie(movie, tags)

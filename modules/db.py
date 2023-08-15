@@ -31,13 +31,16 @@ class Db:
 
         self.migrate()
         self.timer = threading.Timer(30.0, self.setup_saver)
+        print(self.timer)
         self.timer.start()
 
     def setup_saver(self):
         self.timer = threading.Timer(30.0, self.setup_saver)
         self.timer.start()
+        self.save()
 
     def save(self):
+        print("Saving DB")
         with open(self._dbf, 'w') as fh:
             fh.write(json.dumps(self.db))
 
