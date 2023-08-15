@@ -1,8 +1,8 @@
 import datetime
 
 import pytz
-from telegram import Update, ForceReply
-from telegram.ext import ContextTypes, CommandHandler, ConversationHandler
+from telegram import Update, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes, CommandHandler, ConversationHandler, CallbackQueryHandler
 
 from modules.utils import ModTypes
 from modules.db import db as mydb
@@ -25,6 +25,7 @@ CHOICES = 2
 DAYS_OF_WEEK = 3
 TIME = 4
 TIMEZONE = 5
+GROUP_CHAT = 6
 
 
 async def send_poll(context: ContextTypes.DEFAULT_TYPE) -> None:
@@ -121,12 +122,31 @@ async def timezone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
         mydb.db['groups'] = {chat_id: {}}
     if 'polls' not in mydb.db['groups'][chat_id]:
         mydb.db['groups'][chat_id] = {'polls': []}
+
+    btns = []
+    # We need to update our DB logic to ALWAYS save the chat as a blank dict the first time the bot is used in that chat
+    for chat in mydb.get_chat_list():
+        if await context.bot.getChatMember(chat_id=chat, user_id=update.message.from_user.id):
+            full_chat = await context.bot.get_chat(chat_id=chat)
+            # Fullchat .title works in group chats / super chats, not priv convos
+            btns.append(InlineKeyboardButton(full_chat.title, callback_data=f'sc_{chat}'))
+    markup = [[btn] for btn in btns]
+    await update.message.reply_text(
+        text='Please select a chat from the list to use',
+        reply_markup=InlineKeyboardMarkup(markup)
+    )
     # Save the poll for the user in the group
     mydb.db['groups'][chat_id]['polls'].append(context.user_data['shared_data'])
     mydb.save_group(group_id=chat_id, **mydb.db['groups'][chat_id])
 
-    await update.message.reply_text("Your automated poll has been created.")
+    return GROUP_CHAT
 
+
+async def choose_poll_post_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    await update.callback_query.message.reply_text(
+        text='Got it. Consider it done. Hoy will need to add the code to save the new field here which means the chat ID selected from the callback'
+    )
     return ConversationHandler.END
 
 
@@ -150,6 +170,7 @@ CONVERSATION = ConversationHandler(
         DAYS_OF_WEEK: [MessageHandler(filters.TEXT, days_of_week)],
         TIME: [MessageHandler(filters.TEXT, time)],
         TIMEZONE: [MessageHandler(filters.TEXT, timezone)],
+        GROUP_CHAT: [CallbackQueryHandler(pattern='^sc_-?[0-9]+$', callback=choose_poll_post_location)]
 
     },
     fallbacks=[CommandHandler("cancel", cancel)],

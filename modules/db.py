@@ -82,6 +82,9 @@ class Db:
         self.save()
         return self.db['groups'][group_id]
 
+    def get_chat_list(self):
+        return list(self.db.get("groups").keys())
+
     def __set_user_share(self, user_id):
         self.db['users'][user_id]['share'] = binascii.b2a_hex(os.urandom(8)).decode()
 
