@@ -12,7 +12,7 @@ load_dotenv()
 
 
 def main():
-    modules = ['sonarr_manager', 'setup_manager', 'trash', 'radarr_manager']
+    modules = ['sonarr_manager', 'setup_manager', 'trash', 'radarr_manager', 'poll_manager', 'gc_init']
     app = ApplicationBuilder().token(os.environ.get("TOKEN")).build()
     for mod in modules:
         module = importlib.import_module(f'modules.{mod}')
@@ -22,6 +22,10 @@ def main():
         elif module.MOD_TYPE == ModTypes.COMMAND_DRIVEN:
             app.add_handlers(module.HANDLERS)
 
+        try:
+            app.job_queue.run_once(module.LOAD_FROM_DB, 5)
+        except AttributeError:
+            pass
     try:
         app.run_polling(allowed_updates=Update.ALL_TYPES)
     except Exception as ex:
