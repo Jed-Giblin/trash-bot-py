@@ -1,6 +1,7 @@
 import datetime
 
-from telegram import Update
+import pytz
+from telegram import Update, ForceReply
 from telegram.ext import ContextTypes, CommandHandler, ConversationHandler
 
 from modules.utils import ModTypes
@@ -23,9 +24,10 @@ QUESTION = 1
 CHOICES = 2
 DAYS_OF_WEEK = 3
 TIME = 4
+TIMEZONE = 5
 
 
-async def poll(context: ContextTypes.DEFAULT_TYPE) -> None:
+async def send_poll(context: ContextTypes.DEFAULT_TYPE) -> None:
     """Sends a predefined poll"""
     job = context.job
     await context.bot.send_poll(
@@ -49,13 +51,9 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
 
 async def schedule_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Starts the conversation."""
-    reply_keyboard = [[]]
-
     await update.message.reply_text(
         "Please enter a name for your poll.",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder="When should we do that thing?"
-        ),
+        reply_markup=ForceReply(selective=True),
     )
 
     return NAME
@@ -63,12 +61,9 @@ async def schedule_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
 
 async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['shared_data'] = {'name': update.message.text}
-    reply_keyboard = [[]]
     await update.message.reply_text(
         f"Please enter the poll question",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder=""
-        ),
+        reply_markup=ForceReply(selective=True),
     )
 
     return QUESTION
@@ -76,12 +71,10 @@ async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['shared_data']['question'] = update.message.text
-    reply_keyboard = [[]]
+    print(update.message.text)
     await update.message.reply_text(
         f"Now enter your comma separated poll answers.",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder=""
-        ),
+        reply_markup=ForceReply(selective=True),
     )
 
     return CHOICES
@@ -89,32 +82,40 @@ async def question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def choices(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['shared_data']['answers'] = update.message.text.split(',')
-    reply_keyboard = [[]]
 
     await update.message.reply_text(
         "Enter comma separated days of the week you want it to run. Where 0-6 is Sun-Sat",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder=""
-        ),
+        reply_markup=ForceReply(selective=True),
     )
     return DAYS_OF_WEEK
 
 
 async def days_of_week(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['shared_data']['days_of_week'] = update.message.text.split(',')
-    reply_keyboard = [[]]
-
     await update.message.reply_text(
-        "Enter the utc time you want it to run as HH:MM. Ex: 16:30 for 4:30PM",
-        reply_markup=ReplyKeyboardMarkup(
-            reply_keyboard, one_time_keyboard=True, input_field_placeholder=""
-        ),
+        "Enter the local time you want it to run as HH:MM. Ex: 16:30 for 4:30PM",
+        reply_markup=ForceReply(selective=True),
     )
     return TIME
 
 
 async def time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['shared_data']['time'] = update.message.text
+    reply_keyboard = [['US/Eastern', 'US/Central', 'US/Pacific', 'UTC']]
+
+    await update.message.reply_text(
+        "Please select a timezone, or copy/paste your applicable timezone from: "
+        "https://gist.github.com/heyalexej/8bf688fd67d7199be4a1682b3eec7568",
+        reply_markup=ReplyKeyboardMarkup(
+            reply_keyboard, one_time_keyboard=True, input_field_placeholder=""
+        ),
+    )
+
+    return TIMEZONE
+
+
+async def timezone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
+    context.user_data['shared_data']['timezone'] = update.message.text
     chat_id = str(update.effective_message.chat_id)
     if not mydb.get_group(chat_id):
         mydb.db['groups'] = {chat_id: {}}
@@ -134,7 +135,7 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     user = update.message.from_user
     print("User %s canceled the conversation.", user.first_name)
     await update.message.reply_text(
-        "Bye! I hope we can talk again some day.", reply_markup=ReplyKeyboardRemove()
+        "Well I think we're done here.", reply_markup=ReplyKeyboardRemove()
     )
 
     return ConversationHandler.END
@@ -148,6 +149,7 @@ CONVERSATION = ConversationHandler(
         CHOICES: [MessageHandler(filters.TEXT, choices)],
         DAYS_OF_WEEK: [MessageHandler(filters.TEXT, days_of_week)],
         TIME: [MessageHandler(filters.TEXT, time)],
+        TIMEZONE: [MessageHandler(filters.TEXT, timezone)],
 
     },
     fallbacks=[CommandHandler("cancel", cancel)],
@@ -162,8 +164,9 @@ async def load_schedules(context: ContextTypes.DEFAULT_TYPE):
             try:
                 remove_job_if_exists(job_id, context)
                 context.job_queue.run_daily(
-                    callback=poll,
-                    time=datetime.time(hour=int(hour), minute=int(minute)),
+                    callback=send_poll,
+                    time=datetime.time(hour=int(hour), minute=int(minute),
+                                       tzinfo=pytz.timezone(poll.get('timezone', 'America/New_York'))),
                     days=[int(d) for d in poll.get('days_of_week')],
                     chat_id=group_id,
                     name=job_id,
