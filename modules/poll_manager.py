@@ -152,6 +152,10 @@ async def choose_poll_post_location(update: Update, context: ContextTypes.DEFAUL
     # Save the poll for the user in the group
     mydb.db['groups'][chat_id]['polls'].append(context.user_data['shared_data'])
     mydb.save_group(group_id=chat_id, **mydb.db['groups'][chat_id])
+    poll = context.user_data['shared_data']
+    job_id = f'{chat_id}_{poll.get("name")}'
+    hour, minute = poll.get('time').split(':')
+    add_poll_to_job_queue(context, chat_id, poll, job_id, hour, minute)
 
     await update.callback_query.message.reply_text(
         text=f'Got it. Your poll will kick off in the group chat you selected.'
@@ -186,26 +190,29 @@ CONVERSATION = ConversationHandler(
 )
 
 
+def add_poll_to_job_queue(context, group_id, poll, job_id, hour, minute):
+    remove_job_if_exists(job_id, context)
+    context.job_queue.run_daily(
+        callback=send_poll,
+        time=datetime.time(hour=int(hour), minute=int(minute),
+                           tzinfo=pytz.timezone(poll.get('timezone', 'America/New_York'))),
+        days=[int(d) for d in poll.get('days_of_week')],
+        chat_id=group_id,
+        name=job_id,
+        data={
+            'options': poll.get('answers'),
+            'question': poll.get('question')
+        }
+    )
+
+
 async def load_schedules(context: ContextTypes.DEFAULT_TYPE):
     for group_id in mydb.db['groups']:
         for poll in mydb.db['groups'][group_id].get('polls', []):
             job_id = f'{group_id}_{poll.get("name")}'
             hour, minute = poll.get('time').split(':')
             try:
-                remove_job_if_exists(job_id, context)
-                context.job_queue.run_daily(
-                    callback=send_poll,
-                    time=datetime.time(hour=int(hour), minute=int(minute),
-                                       tzinfo=pytz.timezone(poll.get('timezone', 'America/New_York'))),
-                    days=[int(d) for d in poll.get('days_of_week')],
-                    chat_id=group_id,
-                    name=job_id,
-                    data={
-                        'options': poll.get('answers'),
-                        'question': poll.get('question')
-                    }
-                )
-
+                add_poll_to_job_queue(context, group_id, poll, job_id, hour, minute)
             except (IndexError, ValueError):
                 print(f'Oops! I couldn\'t add the job {job_id} on startup.')
     for j in context.job_queue.jobs():
