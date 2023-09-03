@@ -12,7 +12,7 @@ load_dotenv()
 
 
 def main():
-    modules = ['sonarr_manager', 'setup_manager', 'trash', 'radarr_manager', 'poll_manager', 'gc_init']
+    modules = ['sonarr_manager', 'setup_manager', 'trash', 'radarr_manager', 'readarr_manager',  'poll_manager', 'gc_init']
     app = ApplicationBuilder().token(os.environ.get("TOKEN")).build()
     for mod in modules:
         module = importlib.import_module(f'modules.{mod}')

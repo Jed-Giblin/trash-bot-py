@@ -6,6 +6,7 @@ from modules.readarr_api import ReadarrApi
 from modules.utils import ModTypes
 import requests
 import os
+import re
 
 MOD_TYPE = ModTypes.CONVERSATION
 MAIN_MENU = 1
@@ -72,11 +73,15 @@ async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['downloads'] = []
 
     btns = []
-    for book in sorted(context.user_data['readarr'].search_new_books(search_str), key=(lambda x: x.get('ratings').get('popularity')))[
+    for book in sorted(context.user_data['readarr'].search_new_books(search_str), key=(lambda x: x.get('book', {}).get('ratings', {}).get('popularity', 0)))[
                  0:20]:
+        if 'book' not in book.keys():
+            continue
+        book = book['book']
         bk_id = str(book['foreignBookId'])
         context.user_data['book_cache'][bk_id] = book
-        slug = f'{book["title"]} ({book["year"]})'
+        author = book.get("author", {}).get("authorNameLastFirst", "")
+        slug = f'{book["title"]} ({book["seriesTitle"]}) - {author}'
         btns.append([InlineKeyboardButton(text=slug, callback_data=f"detail_{bk_id}")])
 
     await context.bot.send_message(
@@ -94,14 +99,15 @@ async def detail_book(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     book = context.user_data['book_cache'][book_id]
     if book.get("images"):
-        poster_url = book.get("images")[0].get("remoteUrl")
+        poster_url = book.get("images")[0].get("url")
         context.user_data['downloads'].append(write_file(f'./tmp/books', f'{book_id}.jpg', poster_url))
         with open(f'./tmp/books/{book_id}.jpg', 'rb') as f:
             await context.bot.send_photo(update.effective_chat.id, photo=f)
-    show_str = f'{book.get("seriesTitle")} ({book.get("authorTitle")})'
+    author = book.get("author", {}).get("authorNameLastFirst", "")
+    book_str = f"{book['title']} ({book['seriesTitle']}) - {author}\n\n{book.get('overview', '')}"
     btns = [InlineKeyboardButton("Click here to add", callback_data=f"confirm_{book_id}")]
     await context.bot.send_message(
-        text=show_str,
+        text=book_str,
         chat_id=update.effective_chat.id,
         reply_markup=InlineKeyboardMarkup([btns])
     )
@@ -114,7 +120,7 @@ async def confirm_book_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     book_id = str(query.data.split('_')[-1])
     book = context.user_data['book_cache'][book_id]
     try:
-        context.user_data['radarr'].add_book(book, str(update.effective_chat.id))
+        context.user_data['readarr'].add_book(book, str(update.effective_chat.id))
         await context.bot.send_message(
             text='Book added', chat_id=update.effective_chat.id
         )
@@ -165,6 +171,5 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(detail_book, pattern='^detail_[0-9]+$')
         ]
     },
-    #fallbacks=[CommandHandler("shows", entry_point)]
-    fallbakcs=[]
+    fallbacks=[CommandHandler("books", entry_point)]
 )

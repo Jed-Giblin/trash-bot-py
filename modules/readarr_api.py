@@ -30,10 +30,28 @@ class ReadarrApi:
     def __post(self, path, body):
         uri = f'https://{self._host}{path}'
         res = requests.post(uri, params={"apiKey": self._api_key}, json=body)
+
         if res.status_code >= 400:
             # TODO - Convert to logging
             print(f'Got Status Code: {res.status_code} when POSTing to {uri}')
             print(f'Got Body: {res.json()}')
+
+            if res.status_code == 400:
+                raise ValueError(res.json()[0]['errorMessage'])
+            if res.status_code == 401 or res.status_code == 403:
+                raise PermissionError
+            raise ValueError("There was a failure communicating with the server")
+        return res
+
+    def __put(self, path, body):
+        uri = f'https://{self._host}{path}'
+        res = requests.put(uri, params={"apiKey": self._api_key}, json=body)
+
+        if res.status_code >= 400:
+            # TODO - Convert to logging
+            print(f'Got Status Code: {res.status_code} when POSTing to {uri}')
+            print(f'Got Body: {res.json()}')
+
             if res.status_code == 400:
                 raise ValueError(res.json()[0]['errorMessage'])
             if res.status_code == 401 or res.status_code == 403:
@@ -45,7 +63,7 @@ class ReadarrApi:
         return f'https://{self._host}{url}'
 
     def search_new_books(self, search_str):
-        res = self.__get('/api/v1/book/lookup', params={'term': search_str}).json()
+        res = self.__get('/api/v1/search', params={'term': search_str}).json()
         return res
 
     def create_tag(self, tag):
@@ -62,12 +80,29 @@ class ReadarrApi:
             return [self.create_tag(tag)]
 
     def _add_book(self, book, tags):
-        book["tags"] = tags
-        book['rootFolderPath'] = '/books'
-        book['qualityProfileId'] = 1
-        book['monitored'] = True
-        book['addOptions'] = {'searchForNewBook': True, 'addType': 'automatic'}
-        r = self.__post('/api/v1/book', body=book)
+        author_exists = False
+        author_check = self.__get(f'/api/v1/book/{book.get("id", 0)}')
+        if author_check.status_code == 200:
+            author_exists = True
+
+        if author_exists:
+            body = {"bookIds": [book['id']], "monitored": True}
+            r = self.__put('/api/v1/book/monitor', body=body)
+            force_refresh = self.__post('/api/v1/command', body={"name": "AuthorSearch", "authorId": book['authorId']})
+        else:
+            book["author"]["tags"] = tags
+            book['author']['rootFolderPath'] = f'/books'
+            book['author']['qualityProfileId'] = 1
+            book['author']['monitored'] = True
+            book['author']['metadataProfileId'] = 1
+            book['author']['addOptions'] = {'monitor': 'none', 'monitored': True, 'searchForMissingBooks': False}
+
+            book["tags"] = tags
+            book['qualityProfileId'] = 1
+            book['monitored'] = True
+            book['addOptions'] = {'searchForNewBook': True, 'addType': 'automatic'}
+            r = self.__post('/api/v1/book', body=book)
+
         if r:
             return True, 'ok'
         return False, r.text

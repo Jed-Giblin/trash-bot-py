@@ -3,7 +3,6 @@ from telegram.ext import ContextTypes, Application, ConversationHandler, Command
     MessageHandler, filters
 from modules.db import db as mydb
 from modules.radarr_api import RadarrApi
-from modules.sonarr_api import SonarrApi
 from modules.utils import ModTypes
 import requests
 import os
