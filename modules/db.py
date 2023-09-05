@@ -58,6 +58,24 @@ class Db:
             filter(lambda u: u["share"] == code, self.db.get("users").values())
             , None) is not None
 
+    def add_trash_word(self, chat_id, word):
+        if str(chat_id) not in self.db['groups']:
+            self.db['groups'][str(chat_id)] = DEFAULT_GROUP
+
+        self.db['groups'][str(chat_id)]['words'].append(word)
+        self.save()
+
+    def remove_trash_word(self, chat_id, word):
+        if str(chat_id) not in self.db['groups']:
+            return None
+        self.db['groups'][str(chat_id)]['words'].remove(word)
+        return None
+
+    def get_trash_words(self, chat_id):
+        if str(chat_id) not in self.db['groups']:
+            return []
+        return self.db['groups'][str(chat_id)]['words']
+
     def get_user_by_code(self, code):
         return next(
             filter(lambda u: u["share"] == code, self.db.get("users").values())
