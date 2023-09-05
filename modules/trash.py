@@ -2,7 +2,6 @@ from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler, filters, MessageHandler
 import re
 from modules.utils import ModTypes
-from modules.db import db as mydb
 
 MOD_TYPE = ModTypes.COMMAND_DRIVEN
 
@@ -13,12 +12,6 @@ async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'This is only allowed in group chats'
         )
         return None
-    if len(update.message.text.split('/newword ')) < 2:
-        await update.message.reply_text(
-            'Fuck you cole'
-        )
-        return None
-    mydb.get_or_create_chat(str(update.effective_chat.id), update.effective_chat.effective_name)
     new_word = update.message.text.split('/newword ')[-1]
     if not len(new_word):
         await update.message.reply_text(
@@ -27,7 +20,7 @@ async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return None
 
     word = re.sub("[\.\*\[\]\(\)\?]", "", new_word)
-    mydb.add_trash_word(update.effective_chat.id, word)
+    context.chat_data.add_trash_word(update.effective_chat.id, word)
     await update.message.reply_text(
         'Added!'
     )
@@ -40,8 +33,6 @@ async def del_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'This is only allowed in group chats'
         )
         return None
-
-    mydb.get_or_create_chat(str(update.effective_chat.id), update.effective_chat.effective_name)
     new_word = update.message.text.split('/newword ')[-1]
     if not len(new_word):
         await update.message.reply_text(
@@ -49,7 +40,7 @@ async def del_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return None
     word = re.sub("[\.\*\[\]\(\)\?]", "", new_word)
-    mydb.remove_trash_word(update.effective_chat.id, word)
+    context.chat_data.remove_trash_word(update.effective_chat.id, word)
     await update.message.reply_text(
         'Removed!'
     )
@@ -58,7 +49,7 @@ async def del_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_trash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     msg_txt = update.message.text
-    trash_words = mydb.get_trash_words(update.effective_chat.id)
+    trash_words = context.chat_data.words
     if not len(trash_words):
         return None
 

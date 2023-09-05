@@ -5,7 +5,6 @@ from telegram import Update, ForceReply, InlineKeyboardButton, InlineKeyboardMar
 from telegram.ext import ContextTypes, CommandHandler, ConversationHandler, CallbackQueryHandler
 
 from modules.utils import ModTypes
-from modules.db import db as mydb
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import (
     Application,
@@ -56,8 +55,6 @@ async def schedule_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> i
         "Please enter a name for your poll.",
         reply_markup=ForceReply(selective=True),
     )
-    print(update.effective_message.chat_id)
-
     return NAME
 
 
@@ -73,7 +70,6 @@ async def name(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def question(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['shared_data']['question'] = update.message.text
-    print(update.message.text)
     await update.message.reply_text(
         f"Now enter your comma separated poll answers.",
         reply_markup=ForceReply(selective=True),
@@ -119,10 +115,9 @@ async def time(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 async def timezone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     context.user_data['shared_data']['timezone'] = update.message.text
     btns = []
-    # TODO update our DB logic to ALWAYS save the chat as a blank dict the first time the bot is used in that chat
-    for chat in mydb.get_chat_list():
-        if await context.bot.getChatMember(chat_id=chat, user_id=update.message.from_user.id):
-            full_chat = await context.bot.get_chat(chat_id=chat)
+    for chat in context.application.persistence.get_chat_list():
+        if await context.bot.getChatMember(chat_id=chat.id, user_id=update.message.from_user.id):
+            full_chat = await context.bot.get_chat(chat_id=chat.id)
             if full_chat.type == "private":
                 continue
             else:
@@ -144,14 +139,8 @@ async def timezone(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
 
 async def choose_poll_post_location(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = str(update.callback_query.data.split('_')[-1])
-    if not mydb.get_group(chat_id):
-        mydb.db['groups'] = {chat_id: {}}
-    if 'polls' not in mydb.db['groups'][chat_id]:
-        mydb.db['groups'][chat_id] = {'polls': []}
-
+    context.chat_data.save_poll(context.user_data['shared_data'])
     # Save the poll for the user in the group
-    mydb.db['groups'][chat_id]['polls'].append(context.user_data['shared_data'])
-    mydb.save_group(group_id=chat_id, **mydb.db['groups'][chat_id])
     poll = context.user_data['shared_data']
     job_id = f'{chat_id}_{poll.get("name")}'
     hour, minute = poll.get('time').split(':')
@@ -207,12 +196,12 @@ def add_poll_to_job_queue(context, group_id, poll, job_id, hour, minute):
 
 
 async def load_schedules(context: ContextTypes.DEFAULT_TYPE):
-    for group_id in mydb.db['groups']:
-        for poll in mydb.db['groups'][group_id].get('polls', []):
-            job_id = f'{group_id}_{poll.get("name")}'
+    for chat in context.application.persistence.get_chat_list():
+        for poll in chat.polls:
+            job_id = f'{chat.id}_{poll.get("name")}'
             hour, minute = poll.get('time').split(':')
             try:
-                add_poll_to_job_queue(context, group_id, poll, job_id, hour, minute)
+                add_poll_to_job_queue(context, chat.id, poll, job_id, hour, minute)
             except (IndexError, ValueError):
                 print(f'Oops! I couldn\'t add the job {job_id} on startup.')
     for j in context.job_queue.jobs():

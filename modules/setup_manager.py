@@ -3,8 +3,6 @@ import traceback
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
-from modules.db import UnallowedBlankValue
-from modules.db import db as mydb
 from modules.utils import ModTypes
 
 MOD_TYPE = ModTypes.CONVERSATION
@@ -23,8 +21,8 @@ ADD_READARR_TOKEN = 42
 
 SHARE_ACCESS = 31
 
-ADD_SUCCESS = 'Your server has been configured. You can use the following code to share your server to ' \
-              'others:'
+ADD_SUCCESS = 'Your server has been configured. You can use the following code (including the - if its there) ' \
+              'to share your server to others:'
 
 
 async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -34,11 +32,17 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
+    if context.user_data.name == "":
+        context.user_data.name = update.effective_user.name
+
     reply_keyboard = [
         [
             InlineKeyboardButton("Add Sonarr", callback_data="add_sonarr"),
             InlineKeyboardButton("Add Radarr", callback_data="add_radarr"),
             InlineKeyboardButton("Add Readarr", callback_data="add_readarr"),
+        ],
+        [
+            InlineKeyboardButton("Self Debug", callback_data="print_config"),
             InlineKeyboardButton("Share Access", callback_data="share_access")
         ]
     ]
@@ -51,6 +55,12 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_sonarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    The callback that occurs when a user clicks "Add Sonarr"
+    :param update:
+    :param context:
+    :return:
+    """
     query = update.callback_query
     await query.answer()
 
@@ -65,6 +75,12 @@ async def add_sonarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_sonarr_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    The callback that records the entered value for the sonarr hostname
+    :param update:
+    :param context:
+    :return:
+    """
     hostname = update.message.text
     context.user_data['tmp_sonarr_hostname'] = hostname
     await context.bot.send_message(
@@ -75,18 +91,17 @@ async def add_sonarr_server(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_sonarr_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    The final callback when adding a sonarr server. Saves the config + notifies user
+    :param update:
+    :param context:
+    :return:
+    """
     try:
-        share = save_configuration(update.message.from_user.id,
-                                   sonarr_hostname=context.user_data['tmp_sonarr_hostname'],
-                                   sonarr_token=update.message.text)
+        context.user_data.save_servarr('sonarr', context.user_data['tmp_sonarr_hostname'], update.message.text)
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=f'{ADD_SUCCESS} {share}'
-        )
-    except ValueError as ex:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"You cant setup a server with a blank {str(ex)}"
+            text=f'{ADD_SUCCESS}'
         )
     except Exception as ex:
         print("Something else went wrong")
@@ -98,6 +113,12 @@ async def add_sonarr_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_radarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    The callback that occurs when a user clicks "Add Radarr"
+    :param update:
+    :param context:
+    :return:
+    """
     query = update.callback_query
     await query.answer()
     await query.message.delete()
@@ -111,6 +132,12 @@ async def add_radarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_radarr_hostname(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    The callback that records the entered value for the radarr hostname
+    :param update:
+    :param context:
+    :return:
+    """
     hostname = update.message.text
     context.user_data['tmp_radarr_hostname'] = hostname
     await context.bot.send_message(
@@ -121,18 +148,17 @@ async def add_radarr_hostname(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def add_radarr_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    The final callback when adding a radarr server. Saves the config + notifies user
+    :param update:
+    :param context:
+    :return:
+    """
     try:
-        share = save_configuration(update.message.from_user.id,
-                                   radarr_hostname=context.user_data['tmp_radarr_hostname'],
-                                   radarr_token=update.message.text)
+        context.user_data.save_servarr('radarr', context.user_data['tmp_radarr_hostname'], update.message.text)
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=f'{ADD_SUCCESS} {share}'
-        )
-    except ValueError as ex:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"You cant setup a server with a blank {str(ex)}"
+            text=f'{ADD_SUCCESS}'
         )
     except Exception as ex:
         print("Something else went wrong")
@@ -141,11 +167,17 @@ async def add_radarr_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
         del context.user_data['tmp_radarr_hostname']
         return ConversationHandler.END
 
+
 async def add_readarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    The callback that occurs when a user clicks "Add Readarr"
+    :param update:
+    :param context:
+    :return:
+    """
     query = update.callback_query
     await query.answer()
     await query.message.delete()
-
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
         text="Please provide a hostname for your Readarr server"
@@ -155,6 +187,12 @@ async def add_readarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_readarr_hostname(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    The callback that records the entered value for the readarr hostname
+    :param update:
+    :param context:
+    :return:
+    """
     hostname = update.message.text
     context.user_data['tmp_readarr_hostname'] = hostname
     await context.bot.send_message(
@@ -165,18 +203,17 @@ async def add_readarr_hostname(update: Update, context: ContextTypes.DEFAULT_TYP
 
 
 async def add_readarr_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    The final callback when adding a readarr server. Saves the config + notifies user
+    :param update:
+    :param context:
+    :return:
+    """
     try:
-        share = save_configuration(update.message.from_user.id,
-                                   readarr_hostname=context.user_data['tmp_readarr_hostname'],
-                                   readarr_token=update.message.text)
+        context.user_data.save_servarr('readarr', context.user_data['tmp_readarr_hostname'], update.message.text)
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
-            text=f'{ADD_SUCCESS} {share}'
-        )
-    except ValueError as ex:
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text=f"You cant setup a server with a blank {str(ex)}"
+            text=f'{ADD_SUCCESS} {context.user_data.share()}'
         )
     except Exception as ex:
         print("Something else went wrong")
@@ -186,17 +223,13 @@ async def add_readarr_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return ConversationHandler.END
 
 
-def save_configuration(user_id, **kwargs):
-    try:
-        return mydb.save_user_configuration(user_id, **kwargs)
-    except UnallowedBlankValue as ex:
-        raise ValueError(ex)
-    except Exception as ex:
-        print("Something else went wrong")
-        print(ex)
-
-
 async def start_share_access(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback made when a user clicks "Share Access"
+    :param update:
+    :param context:
+    :return:
+    """
     query = update.callback_query
     await query.answer()
     await query.message.delete()
@@ -209,19 +242,34 @@ async def start_share_access(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
 
 async def share_access(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback called once a user has input a share code to share access from another user
+    :param update:
+    :param context:
+    :return:
+    """
     share_code = update.message.text
-    if mydb.share_code_is_valid(share_code):
-        mydb.share_access(update.message.from_user.id, share_code)
-        await context.bot.send_message(
-            chat_id=update.effective_chat.id,
-            text="Your share request has been configured"
-        )
-    else:
-        await context.bot.send_message(
-            chat_id=update.message.from_user.id,
-            text="Unable to find that share code"
-        )
+    context.application.persistence.lookup_user(share_code)
+    context.user_data.receive_access(context.application.persistence.lookup_user(share_code))
+    await update.message.reply_text(
+        'Access granted. You can now use those servers to download shows,movies and books'
+    )
+    return ConversationHandler.END
 
+
+async def print_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Method to output the current configuration of the user for debugging
+    :param update:
+    :param context:
+    :return:
+    """
+    await update.callback_query.answer()
+    user = context.user_data.get_config()
+    await update.callback_query.delete_message()
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id, text=user
+    )
     return ConversationHandler.END
 
 
@@ -232,6 +280,7 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(add_sonarr, pattern="^add_sonarr"),
             CallbackQueryHandler(add_radarr, pattern="^add_radarr"),
             CallbackQueryHandler(add_readarr, pattern="^add_readarr"),
+            CallbackQueryHandler(print_config, pattern="^print_config"),
             CallbackQueryHandler(start_share_access, pattern="^share_access"),
         ],
         ADD_SONARR_HOSTNAME: [

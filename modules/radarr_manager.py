@@ -1,7 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
-from modules.db import db as mydb
 from modules.radarr_api import RadarrApi
 from modules.utils import ModTypes
 import requests
@@ -28,6 +27,9 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
         ["Add Movies"],
         ["Manage Movies"],
     ]
+
+    if context.user_data.name == "":
+        context.user_data.name = update.effective_user.name
 
     reply_markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
     await update.message.reply_text(
@@ -66,7 +68,7 @@ async def add_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
     search_str = update.message.text
-    radarr_config = get_and_validate_config(update.effective_user.id)
+    radarr_config = context.user_data.get_radarr_settings()
     context.user_data['radarr'] = RadarrApi(**radarr_config)
     context.user_data['movie_cache'] = {}
     context.user_data['downloads'] = []
@@ -123,13 +125,6 @@ async def confirm_movie_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f'Unable to add movie. {ex}', chat_id=update.effective_chat.id
         )
     return ConversationHandler.END
-
-
-def get_and_validate_config(user_id):
-    radarr_config = mydb.get_user(user_id)
-    if not radarr_config:
-        raise ValueError
-    return radarr_config
 
 
 def write_file(path, filename, remote):

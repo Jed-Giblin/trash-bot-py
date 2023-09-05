@@ -1,7 +1,13 @@
 import os
 import json
 import binascii
+import pickle
 import threading
+from copy import deepcopy
+
+from telegram.ext._picklepersistence import _BotUnpickler, PicklePersistence
+
+from modules.db_models import TGUser, TGChat
 
 DEFAULT_GROUP = {
     'words': [],
@@ -16,129 +22,59 @@ class UnallowedBlankValue(ValueError):
     pass
 
 
-class Db:
-    def __init__(self, base_path="."):
-        self._dir = f'{base_path}/db'
-        if not os.path.exists(self._dir):
-            os.makedirs(self._dir)
-        self._dbf = f'{self._dir}/db.json'
-        if not os.path.exists(self._dbf):
-            with open(self._dbf, 'w+') as fh:
-                fh.write('{"users": {}, "groups": {}}')
-
-        with open(self._dbf) as fh:
-            self.db = json.load(fh)
-
-        self.migrate()
-        self.timer = threading.Timer(30.0, self.setup_saver)
-        print(self.timer)
-        self.timer.start()
-
-    def setup_saver(self):
-        self.timer = threading.Timer(30.0, self.setup_saver)
-        self.timer.start()
-        self.save()
-
-    def save(self):
-        print("Saving DB")
-        with open(self._dbf, 'w') as fh:
-            fh.write(json.dumps(self.db))
-
-    def handle_exit(self):
-        self.save()
-        self.timer.cancel()
-
-    def migrate(self):
-        migrations = []
-        for migration in migrations:
-            pass
-
-    def share_code_is_valid(self, code):
-        return next(
-            filter(lambda u: u["share"] == code, self.db.get("users").values())
-            , None) is not None
-
-    def add_trash_word(self, chat_id, word):
-        if str(chat_id) not in self.db['groups']:
-            self.db['groups'][str(chat_id)] = DEFAULT_GROUP
-
-        self.db['groups'][str(chat_id)]['words'].append(word)
-        self.save()
-
-    def remove_trash_word(self, chat_id, word):
-        if str(chat_id) not in self.db['groups']:
-            return None
-        self.db['groups'][str(chat_id)]['words'].remove(word)
-        return None
-
-    def get_trash_words(self, chat_id):
-        if str(chat_id) not in self.db['groups']:
-            return []
-        return self.db['groups'][str(chat_id)]['words']
-
-    def get_user_by_code(self, code):
-        return next(
-            filter(lambda u: u["share"] == code, self.db.get("users").values())
-            , None)
-
-    def share_access(self, user_id, code):
-        uid = str(user_id)
-        self.db.get("users")[uid] = self.get_user_by_code(code)
-        self.save()
-
-    def get_user(self, user_id):
-        return self.db.get("users")[str(user_id)]
-
-    def save_user_configuration(self, user_id, **kwargs):
-        uid = str(user_id)
-        if uid not in self.db.get("users"):
-            self.db['users'][uid] = {}
-
-        self.db['users'][uid].update(kwargs)
-        if 'share' not in self.db['users'][uid]:
-            self.__set_user_share(uid)
-        self.save()
-        return self.db['users'][uid]['share']
-
-    def get_group(self, group_id):
-        if group_id in self.db.get('groups'):
-            return self.db['groups'][str(group_id)]
-        return None
-
-    def save_group(self, group_id, **kwargs):
-        if group_id not in self.db.get('groups'):
-            self.db['groups'][group_id] = {}
-
-        self.db['groups'][group_id].update(kwargs)
-        self.save()
-        return self.db['groups'][group_id]
+class EnhancedPicklePersistence(PicklePersistence):
+    def lookup_user(self, code):
+        return self.user_data[int(code)]
 
     def get_chat_list(self):
-        return list(self.db.get("groups").keys())
+        return self.chat_data.values()
 
-    def __create_chat(self, chat_id, chat_name):
-        self.db['groups'][chat_id] = DEFAULT_GROUP
-        self.db['groups'][chat_id]['name'] = chat_name
-        self.save()
+    def get_chat(self, chat_id):
+        return self.chat_data[chat_id]
 
-    def get_or_create_chat(self, chat_id, chat_name=None):
-        if chat_id in self.db.get("groups"):
-            return self.db.get("groups")[chat_id]
-        if not chat_name:
-            raise ValueError("Unable to save new chat without name")
+    def _load_users_from_json(self):
+        print("Loading Users from JSON")
+        if os.path.exists('./db/db.json'):
+            with open('./db/db.json') as fh:
+                json_data = json.loads(fh.read())
+            for user_id, user in json_data.get("users").items():
+                tg = TGUser.from_dict(**user)
+                tg.id = int(user_id)
+                self.user_data[tg.id] = tg
 
-        self.__create_chat(chat_id, chat_name)
-        return self.db['groups'][chat_id]
+    def _load_chats_from_json(self):
+        print("Loading Chats from JSON")
+        if os.path.exists('./db/db.json'):
+            with open('./db/db.json') as fh:
+                json_data = json.loads(fh.read())
+            for chat_id, chat in json_data.get("groups").items():
+                tg = TGChat.from_dict(**chat)
+                tg.id = int(chat_id)
+                self.chat_data[tg.id] = tg
 
-    def delete_chat(self, chat_id):
-        del self.db['groups'][chat_id]
-        self.save()
-
-    def __set_user_share(self, user_id):
-        self.db['users'][user_id]['share'] = binascii.b2a_hex(os.urandom(8)).decode()
-
-
-db = None
-if not db:
-    print("Init DB")
-    db = Db()
+    def _load_singlefile(self) -> None:
+        try:
+            with self.filepath.open("rb") as file:
+                data = _BotUnpickler(self.bot, file).load()
+            self.user_data = data["user_data"]
+            self.chat_data = data["chat_data"]
+            # For backwards compatibility with files not containing bot data
+            self.bot_data = data.get("bot_data", self.context_types.bot_data())
+            self.callback_data = data.get("callback_data", {})
+            self.conversations = data["conversations"]
+        except OSError:
+            self.conversations = {}
+            self.user_data = {}
+            self._load_users_from_json()
+            self.chat_data = {}
+            self._load_chats_from_json()
+            self.bot_data = self.context_types.bot_data()
+            self.callback_data = None
+            os.rename('./db/db.json', './db/db.json.bak')
+            self._dump_singlefile()
+        except pickle.UnpicklingError as exc:
+            filename = self.filepath.name
+            raise TypeError(f"File {filename} does not contain valid pickle data") from exc
+        except Exception as exc:
+            print(exc)
+            raise TypeError(f"Something went wrong unpickling {self.filepath.name}") from exc

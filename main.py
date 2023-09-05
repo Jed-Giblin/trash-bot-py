@@ -1,19 +1,25 @@
 import asyncio
 import importlib
 import os
-from modules.db import db
+import traceback
+
+from modules.db import EnhancedPicklePersistence
 from telegram import Update
-from telegram.ext import CommandHandler, ApplicationBuilder
+from telegram.ext import CommandHandler, ApplicationBuilder, PicklePersistence, ContextTypes, CallbackContext
 from dotenv import load_dotenv
 
+from modules.db_models import TGChat, TGUser
 from modules.utils import ModTypes
 
 load_dotenv()
 
 
 def main():
-    modules = ['sonarr_manager', 'setup_manager', 'trash', 'radarr_manager', 'readarr_manager',  'poll_manager', 'gc_init']
-    app = ApplicationBuilder().token(os.environ.get("TOKEN")).build()
+    modules = ['sonarr_manager', 'setup_manager', 'radarr_manager', 'readarr_manager', 'poll_manager', 'trash']
+    context_types = ContextTypes(context=CallbackContext, chat_data=TGChat, user_data=TGUser)
+    persistance = EnhancedPicklePersistence(filepath='./db/db.pickle')
+    app = ApplicationBuilder().token(os.environ.get("TOKEN")).context_types(context_types).persistence(
+        persistance).build()
     for mod in modules:
         module = importlib.import_module(f'modules.{mod}')
         if module.MOD_TYPE == ModTypes.CONVERSATION:
@@ -27,12 +33,13 @@ def main():
         except AttributeError:
             pass
     try:
+        print(app.handlers)
         app.run_polling(allowed_updates=Update.ALL_TYPES)
     except Exception as ex:
+        traceback.print_exc()
         print(ex)
     finally:
         print("Final block")
-        db.handle_exit()
         exit()
 
 

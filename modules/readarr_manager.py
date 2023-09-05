@@ -1,7 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
-from modules.db import db as mydb
 from modules.readarr_api import ReadarrApi
 from modules.utils import ModTypes
 import requests
@@ -67,14 +66,15 @@ async def add_books(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
     search_str = update.message.text
-    readarr_config = get_and_validate_config(update.effective_user.id)
+    readarr_config = context.user_data.get_readarr_settings()
     context.user_data['readarr'] = ReadarrApi(**readarr_config)
     context.user_data['book_cache'] = {}
     context.user_data['downloads'] = []
 
     btns = []
-    for book in sorted(context.user_data['readarr'].search_new_books(search_str), key=(lambda x: x.get('book', {}).get('ratings', {}).get('popularity', 0)))[
-                 0:20]:
+    for book in sorted(context.user_data['readarr'].search_new_books(search_str),
+                       key=(lambda x: x.get('book', {}).get('ratings', {}).get('popularity', 0)))[
+                0:20]:
         if 'book' not in book.keys():
             continue
         book = book['book']
@@ -129,13 +129,6 @@ async def confirm_book_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
             text=f'Unable to add book. {ex}', chat_id=update.effective_chat.id
         )
     return ConversationHandler.END
-
-
-def get_and_validate_config(user_id):
-    readarr_config = mydb.get_user(user_id)
-    if not readarr_config:
-        raise ValueError
-    return readarr_config
 
 
 def write_file(path, filename, remote):

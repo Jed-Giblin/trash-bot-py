@@ -1,7 +1,6 @@
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
-from modules.db import db as mydb
 from modules.sonarr_api import SonarrApi
 from modules.utils import ModTypes
 
@@ -27,6 +26,10 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
             "That's only allowed in private chats.", quote=True
         )
         return ConversationHandler.END
+
+    if context.user_data.name == "":
+        context.user_data.name = update.effective_user.name
+
     reply_keyboard = [
         [InlineKeyboardButton("Add Shows", callback_data="add_shows")],
         [InlineKeyboardButton("Manage Shows", callback_data="list_user_shows")],
@@ -62,7 +65,7 @@ async def search_sonarr_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query_str = update.message.text
     await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=context.user_data['del_msg_id'])
     try:
-        sonarr_config = await get_and_validate_config(update.message.from_user.id)
+        context.user_data['sonarr'] = SonarrApi(**context.user_data.get_sonarr_settings())
     except ValueError:
         await context.bot.send_message(
             chat_id=update.message.from_user.id,
@@ -70,7 +73,6 @@ async def search_sonarr_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
 
-    context.user_data['sonarr'] = SonarrApi(**sonarr_config)
     context.user_data['show_cache'] = {}
     buttons = [InlineKeyboardButton(text='Quit (Not a show)', callback_data="quit")]
     for show in context.user_data['sonarr'].search(query_str)[0:20]:
@@ -130,15 +132,13 @@ async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.answer()
 
     try:
-        sonarr_config = await get_and_validate_config(update.effective_user.id)
+        context.user_data['sonarr'] = SonarrApi(**context.user_data.get_sonarr_settings())
     except ValueError:
         await context.bot.send_message(
             chat_id=update.message.from_user.id,
             text="You have not configured a server.Exiting."
         )
         return ConversationHandler.END
-
-    context.user_data['sonarr'] = SonarrApi(**sonarr_config)
 
     btns = [InlineKeyboardButton(text=s['title'], callback_data=f'manage_{s["id"]}') for s in
             context.user_data['sonarr'].search_existing_shows_by_tag(f'tg:{update.effective_user.id}')]
@@ -227,13 +227,6 @@ async def add_show_season(update: Update, context: ContextTypes.DEFAULT_TYPE):
     show_id = update.callback_query.data.split('_')[1]
     await query.message.delete()
     return ConversationHandler.END
-
-
-async def get_and_validate_config(user_id):
-    sonarr_config = mydb.get_user(user_id)
-    if not sonarr_config:
-        raise ValueError
-    return sonarr_config
 
 
 CONVERSATION = ConversationHandler(

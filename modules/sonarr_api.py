@@ -5,6 +5,8 @@ from modules.utils import manage_seasons
 
 class SonarrApi:
     def __init__(self, sonarr_hostname, sonarr_token, user=None, mypass=None, **kwargs):
+        if not sonarr_hostname or not sonarr_token or sonarr_hostname == '' or sonarr_token == '':
+            raise ValueError
         self._host = sonarr_hostname
         self._api_key = sonarr_token
         self._user = user
