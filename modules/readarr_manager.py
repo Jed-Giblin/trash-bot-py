@@ -2,20 +2,21 @@ from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKe
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
 from modules.db import db as mydb
-from modules.radarr_api import RadarrApi
+from modules.readarr_api import ReadarrApi
 from modules.utils import ModTypes
 import requests
 import os
+import re
 
 MOD_TYPE = ModTypes.CONVERSATION
 MAIN_MENU = 1
 END = 2
 
-COMMAND = 'movies'
+COMMAND = 'books'
 
-NEW_MOVIE_SEARCH = 11
+NEW_BOOK_SEARCH = 11
 SELECT_SEARCH_RESULT = 21
-CONFIRM_MOVIE_OR_SELECT_NEW = 22
+CONFIRM_BOOK_OR_SELECT_NEW = 22
 
 
 async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -25,8 +26,8 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     reply_keyboard = [
-        ["Add Movies"],
-        ["Manage Movies"],
+        ["Add Books"],
+        ["Manage Books"],
     ]
 
     reply_markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
@@ -46,38 +47,42 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
-async def manage_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def manage_books(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         text='Sorry, I haven"t set this up yet', chat_id=update.effective_chat.id
     )
     return ConversationHandler.END
 
 
-async def add_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def add_books(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         reply_to_message_id=update.message.id, quote=True,
-        text="Whats the movie name you want to add? Send me a message with its name. You can also press quit.",
+        text="Whats the book name you want to add? Send me a message with its name. You can also press quit.",
         allow_sending_without_reply=True,
         reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Quit", callback_data="quit")]])
     )
 
-    return NEW_MOVIE_SEARCH
+    return NEW_BOOK_SEARCH
 
 
 async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
     search_str = update.message.text
-    radarr_config = get_and_validate_config(update.effective_user.id)
-    context.user_data['radarr'] = RadarrApi(**radarr_config)
-    context.user_data['movie_cache'] = {}
+    readarr_config = get_and_validate_config(update.effective_user.id)
+    context.user_data['readarr'] = ReadarrApi(**readarr_config)
+    context.user_data['book_cache'] = {}
     context.user_data['downloads'] = []
 
     btns = []
-    for movie in sorted(context.user_data['radarr'].search_new_movies(search_str), key=(lambda x: x["popularity"]))[
+    for book in sorted(context.user_data['readarr'].search_new_books(search_str), key=(lambda x: x.get('book', {}).get('ratings', {}).get('popularity', 0)))[
                  0:20]:
-        mv_id = str(movie['tmdbId'])
-        context.user_data['movie_cache'][mv_id] = movie
-        slug = f'{movie["title"]} ({movie["year"]})'
-        btns.append([InlineKeyboardButton(text=slug, callback_data=f"detail_{mv_id}")])
+        if 'book' not in book.keys():
+            continue
+        book = book['book']
+        bk_id = str(book['foreignBookId'])
+        context.user_data['book_cache'][bk_id] = book
+        author = book.get("author", {}).get("authorNameLastFirst", "")
+        slug = f'{book["title"]} ({book["seriesTitle"]}) - {author}'
+        btns.append([InlineKeyboardButton(text=slug, callback_data=f"detail_{bk_id}")])
 
     await context.bot.send_message(
         text='Here are the top 20 results. You can also search again by sending me a new message',
@@ -87,49 +92,50 @@ async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
     return SELECT_SEARCH_RESULT
 
 
-async def detail_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def detail_book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    movie_id = str(query.data.split('_')[-1])
+    book_id = str(query.data.split('_')[-1])
 
-    movie = context.user_data['movie_cache'][movie_id]
-    if movie.get("images"):
-        poster_url = movie.get("images")[0].get("remoteUrl")
-        context.user_data['downloads'].append(write_file(f'./tmp/movies', f'{movie_id}.jpg', poster_url))
-        with open(f'./tmp/movies/{movie_id}.jpg', 'rb') as f:
+    book = context.user_data['book_cache'][book_id]
+    if book.get("images"):
+        poster_url = book.get("images")[0].get("url")
+        context.user_data['downloads'].append(write_file(f'./tmp/books', f'{book_id}.jpg', poster_url))
+        with open(f'./tmp/books/{book_id}.jpg', 'rb') as f:
             await context.bot.send_photo(update.effective_chat.id, photo=f)
-    show_str = f'{movie.get("title")} ({movie.get("year")})'
-    btns = [InlineKeyboardButton("Click here to add", callback_data=f"confirm_{movie_id}")]
+    author = book.get("author", {}).get("authorNameLastFirst", "")
+    book_str = f"{book['title']} ({book['seriesTitle']}) - {author}\n\n{book.get('overview', '')}"
+    btns = [InlineKeyboardButton("Click here to add", callback_data=f"confirm_{book_id}")]
     await context.bot.send_message(
-        text=show_str,
+        text=book_str,
         chat_id=update.effective_chat.id,
         reply_markup=InlineKeyboardMarkup([btns])
     )
-    return CONFIRM_MOVIE_OR_SELECT_NEW
+    return CONFIRM_BOOK_OR_SELECT_NEW
 
 
-async def confirm_movie_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def confirm_book_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
-    movie_id = str(query.data.split('_')[-1])
-    movie = context.user_data['movie_cache'][movie_id]
+    book_id = str(query.data.split('_')[-1])
+    book = context.user_data['book_cache'][book_id]
     try:
-        context.user_data['radarr'].add_movie(movie, str(update.effective_chat.id))
+        context.user_data['readarr'].add_book(book, str(update.effective_chat.id))
         await context.bot.send_message(
-            text='Movie added', chat_id=update.effective_chat.id
+            text='Book added', chat_id=update.effective_chat.id
         )
     except ValueError as ex:
         await context.bot.send_message(
-            text=f'Unable to add movie. {ex}', chat_id=update.effective_chat.id
+            text=f'Unable to add book. {ex}', chat_id=update.effective_chat.id
         )
     return ConversationHandler.END
 
 
 def get_and_validate_config(user_id):
-    radarr_config = mydb.get_user(user_id)
-    if not radarr_config:
+    readarr_config = mydb.get_user(user_id)
+    if not readarr_config:
         raise ValueError
-    return radarr_config
+    return readarr_config
 
 
 def write_file(path, filename, remote):
@@ -147,23 +153,23 @@ CONVERSATION = ConversationHandler(
     entry_points=[CommandHandler(COMMAND, entry_point)],
     states={
         MAIN_MENU: [
-            MessageHandler(filters.Regex("^Add Movies$"), callback=add_movies),
-            MessageHandler(filters.Regex("^Manage Movies$"), callback=manage_movies),
+            MessageHandler(filters.Regex("^Add Books$"), callback=add_books),
+            MessageHandler(filters.Regex("^Manage Books$"), callback=manage_books),
         ],
-        NEW_MOVIE_SEARCH: [
+        NEW_BOOK_SEARCH: [
             MessageHandler(filters=filters.TEXT, callback=list_search_results),
             CallbackQueryHandler(stop, pattern="^quit$")
         ],
         SELECT_SEARCH_RESULT: [
             CallbackQueryHandler(stop, pattern="^quit$"),
-            CallbackQueryHandler(detail_movie, pattern='^detail_[0-9]+$'),
+            CallbackQueryHandler(detail_book, pattern='^detail_[0-9]+$'),
             MessageHandler(filters=filters.TEXT, callback=list_search_results)
         ],
-        CONFIRM_MOVIE_OR_SELECT_NEW: [
+        CONFIRM_BOOK_OR_SELECT_NEW: [
             CallbackQueryHandler(stop, pattern="^quit$"),
-            CallbackQueryHandler(confirm_movie_add, pattern="^confirm_[0-9]+$"),
-            CallbackQueryHandler(detail_movie, pattern='^detail_[0-9]+$')
+            CallbackQueryHandler(confirm_book_add, pattern="^confirm_[0-9]+$"),
+            CallbackQueryHandler(detail_book, pattern='^detail_[0-9]+$')
         ]
     },
-    fallbacks=[CommandHandler("shows", entry_point)]
+    fallbacks=[CommandHandler("books", entry_point)]
 )

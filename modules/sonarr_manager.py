@@ -94,7 +94,7 @@ async def show_clicked(update: Update, context: ContextTypes.DEFAULT_TYPE):
     show = context.user_data['show_cache'].get(show_id)
     if show.get("remotePoster"):
         await context.bot.send_photo(chat_id=update.effective_chat.id, photo=show.get("remotePoster"))
-    show_str = f'{show.get("title")} ({show.get("year")}) ({show.get("network")}'
+    show_str = f'{show.get("title")} ({show.get("year")}) ({show.get("network")})'
     btns = [InlineKeyboardButton("Click here to add", callback_data=f"confirm_{show_id}")]
     await context.bot.send_message(
         text=show_str,
