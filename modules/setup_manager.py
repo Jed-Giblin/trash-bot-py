@@ -1,9 +1,11 @@
 import traceback
+import os
 
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
 from modules.utils import ModTypes
+from modules.readarr_api import ReadarrApi
 
 MOD_TYPE = ModTypes.CONVERSATION
 
@@ -211,6 +213,8 @@ async def add_readarr_token(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     try:
         context.user_data.save_servarr('readarr', context.user_data['tmp_readarr_hostname'], update.message.text)
+        context.user_data['readarr'] = ReadarrApi(**context.user_data.get_readarr_settings())
+        context.user_data['readarr'].configure_notifications(str(update.effective_chat.id), os.getenv('TOKEN'))
         await context.bot.send_message(
             chat_id=update.effective_chat.id,
             text=f'{ADD_SUCCESS} {context.user_data.share()}'

@@ -1,4 +1,5 @@
-import requests
+from pyarr import ReadarrAPI
+from pyarr.exceptions import PyarrResourceNotFound
 
 
 class ReadarrApi:
@@ -7,107 +8,68 @@ class ReadarrApi:
         self._api_key = readarr_token
         self._user = user
         self._pass = mypass
-
-    def __auth(self):
-        return self._user, self._pass
-
-    def __get(self, path, params=None):
-        if params is None:
-            params = dict()
-        uri = f'https://{self._host}{path}'
-        if 'apiKey' not in params:
-            params['apiKey'] = self._api_key
-        return requests.get(uri, params=params, auth=self.__auth())
-
-    def __delete(self, path, params=None):
-        if params is None:
-            params = dict()
-        uri = f'https://{self._host}{path}'
-        if 'apiKey' not in params:
-            params['apiKey'] = self._api_key
-        return requests.delete(uri, params=params, auth=self.__auth())
-
-    def __post(self, path, body):
-        uri = f'https://{self._host}{path}'
-        res = requests.post(uri, params={"apiKey": self._api_key}, json=body)
-
-        if res.status_code >= 400:
-            # TODO - Convert to logging
-            print(f'Got Status Code: {res.status_code} when POSTing to {uri}')
-            print(f'Got Body: {res.json()}')
-
-            if res.status_code == 400:
-                raise ValueError(res.json()[0]['errorMessage'])
-            if res.status_code == 401 or res.status_code == 403:
-                raise PermissionError
-            raise ValueError("There was a failure communicating with the server")
-        return res
-
-    def __put(self, path, body):
-        uri = f'https://{self._host}{path}'
-        res = requests.put(uri, params={"apiKey": self._api_key}, json=body)
-
-        if res.status_code >= 400:
-            # TODO - Convert to logging
-            print(f'Got Status Code: {res.status_code} when POSTing to {uri}')
-            print(f'Got Body: {res.json()}')
-
-            if res.status_code == 400:
-                raise ValueError(res.json()[0]['errorMessage'])
-            if res.status_code == 401 or res.status_code == 403:
-                raise PermissionError
-            raise ValueError("There was a failure communicating with the server")
-        return res
-
-    def get_url(self, url):
-        return f'https://{self._host}{url}'
+        self.__client = ReadarrAPI(f'https://{self._host}', self._api_key)
+        if self._user and self._pass:
+            self.__client.basic_auth(username=self._user, password=self._pass)
 
     def search_new_books(self, search_str):
-        res = self.__get('/api/v1/search', params={'term': search_str}).json()
-        return res
-
-    def create_tag(self, tag):
-        body = {"label": tag}
-        return self.__post('/api/v1/tag', body=body).json().get("id")
+        return self.__client.lookup(search_str)
 
     def manage_tags(self, tag):
         tags = next(filter(lambda x: x.get("label") == tag,
-                           self.__get('/api/v1/tag').json()), None)
+                           self.__client.get_tag()), None)
 
         if tags:
-            return [tags.get("id")]
+            return [tags.get('id')]
         else:
-            return [self.create_tag(tag)]
+            return [self.__client.create_tag(tag).get('id')]
 
     def _add_book(self, book, tags):
-        author_exists = False
-        author_check = self.__get(f'/api/v1/book/{book.get("id", 0)}')
-        if author_check.status_code == 200:
-            author_exists = True
+        if not book.get('authorId'):
+            author_data = self.__client.add_author(book.get('author'), root_dir=f'/books', author_monitor='none')
+            author_data['monitored'] = True
+            author_id = author_data.get('id')
+            book = next(filter(lambda x: x.get("id") if book['foreignBookId'] == x['foreignBookId'] else {},
+                               self.__client.lookup_book(term=book.get('title'))), {})
+            for i in range(10):
+                try:
+                    author_set_monitor = self.__client.upd_author(author_id, author_data)
+                    break
+                except PyarrResourceNotFound:
+                    ...
+            book['author'] = author_set_monitor
 
-        if author_exists:
-            body = {"bookIds": [book['id']], "monitored": True}
-            r = self.__put('/api/v1/book/monitor', body=body)
-            force_refresh = self.__post('/api/v1/command', body={"name": "AuthorSearch", "authorId": book['authorId']})
+        for tag in tags:
+            if tag not in book['author']['tags']:
+                book['author']['tags'].append(tag)
+                self.__client.upd_author(book.get('authorId'), book.get('author'))
+
+        if book.get('id'):
+            book_update_monitor = self.__client.upd_book_monitor([book.get('id')])
+            force_book_search = self.__client.post_command('BookSearch', bookIds=[book.get('id')])
         else:
-            book["author"]["tags"] = tags
-            book['author']['rootFolderPath'] = f'/books'
-            book['author']['qualityProfileId'] = 1
-            book['author']['monitored'] = True
-            book['author']['metadataProfileId'] = 1
-            book['author']['addOptions'] = {'monitor': 'none', 'monitored': True, 'searchForMissingBooks': False}
+            return False, 'Unable to find book ID'
 
-            book["tags"] = tags
-            book['qualityProfileId'] = 1
-            book['monitored'] = True
-            book['addOptions'] = {'searchForNewBook': True, 'addType': 'automatic'}
-            r = self.__post('/api/v1/book', body=book)
-
-        if r:
-            return True, 'ok'
-        return False, r.text
+        return True, 'ok'
 
     def add_book(self, book, user):
         tags = self.manage_tags(f'tg:{user}')
 
         return self._add_book(book, tags)
+
+    def configure_notifications(self, user, bot_token):
+        tags = self.manage_tags(f'tg:{user}')
+
+        notification = next(filter(
+            lambda x: x.get("id") if tags[0] in x.get('tags', []) and x.get('implementation') == 'Telegram' else None,
+            self.__client.get_notification()), None)
+
+        if not notification:
+            schema = self.__client.get_notification_schema('Telegram').pop()
+            schema['name'] = f'tg:{user}'
+            schema['fields'] = [{'name': 'botToken', 'value': bot_token}, {'name': 'chatId', 'value': user}]
+            schema['tags'].extend(tags)
+            for x in ['onAuthorDelete', 'onBookFileDelete', 'onDownloadFailure', 'onGrab', 'onImportFailure']:
+                schema[x] = True
+            self.__client.add_notification(schema)
+            self.__client.lookup_book()
