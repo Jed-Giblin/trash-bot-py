@@ -1,11 +1,12 @@
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
-from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
+import os
+
+import requests
+from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
+
 from modules.readarr_api import ReadarrApi
 from modules.utils import ModTypes
-import requests
-import os
-import re
 
 MOD_TYPE = ModTypes.CONVERSATION
 MAIN_MENU = 1
@@ -53,6 +54,13 @@ async def manage_books(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    # TODO - Empty context
+    await update.callback_query.answer()
+    await update.callback_query.message.edit_text('Goodbye', reply_markup=None)
+    return ConversationHandler.END
+
+
 async def add_books(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         reply_to_message_id=update.message.id, quote=True,
@@ -73,19 +81,23 @@ async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
 
     btns = []
     for book in sorted(context.user_data['readarr'].search_new_books(search_str),
-                       key=(lambda x: x.get('book', {}).get('ratings', {}).get('popularity', 0)))[
-                0:20]:
-        if 'book' not in book.keys():
+                       key=(lambda x: x.get('book', {}).get('ratings', {}).get('value', 0)), reverse=True)[
+                0:50]:
+        book = book.get('book')
+        if not book:
             continue
-        book = book['book']
         bk_id = str(book['foreignBookId'])
         context.user_data['book_cache'][bk_id] = book
         author = book.get("author", {}).get("authorNameLastFirst", "")
-        slug = f'{book["title"]} ({book["seriesTitle"]}) - {author}'
+        slug = f'{book["title"]}'
+        if book["seriesTitle"]:
+            slug = f'{slug} ({book["seriesTitle"]})'
+        slug = f'{slug} - {author}'
         btns.append([InlineKeyboardButton(text=slug, callback_data=f"detail_{bk_id}")])
 
+    btns.insert(0, [InlineKeyboardButton(text="Quit! (not a book)", callback_data=f'quit')])
     await context.bot.send_message(
-        text='Here are the top 20 results. You can also search again by sending me a new message',
+        text='Here are the top results. You can also search again by sending me a new message',
         chat_id=update.effective_chat.id,
         reply_markup=InlineKeyboardMarkup(btns)
     )
@@ -104,7 +116,11 @@ async def detail_book(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with open(f'./tmp/books/{book_id}.jpg', 'rb') as f:
             await context.bot.send_photo(update.effective_chat.id, photo=f)
     author = book.get("author", {}).get("authorNameLastFirst", "")
-    book_str = f"{book['title']} ({book['seriesTitle']}) - {author}\n\n{book.get('overview', '')}"
+    book_str = f'{book["title"]}'
+    if book["seriesTitle"]:
+        book_str = f'{book_str} ({book["seriesTitle"]})'
+    rating = book.get('ratings', {}).get('value', 0)
+    book_str = f"{book_str} - {author}\n\n{book.get('overview', '')}\n\nRating: {rating}\n\n{book_id} / {book.get('id')}\n\n{book.get('authorId')}"
     btns = [InlineKeyboardButton("Click here to add", callback_data=f"confirm_{book_id}")]
     await context.bot.send_message(
         text=book_str,
@@ -117,12 +133,15 @@ async def detail_book(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def confirm_book_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
+    await context.bot.send_message(
+        text='Please wait while your book is added to monitoring. This may take a 10-15 seconds.', chat_id=update.effective_chat.id
+    )
     book_id = str(query.data.split('_')[-1])
     book = context.user_data['book_cache'][book_id]
     try:
         context.user_data['readarr'].add_book(book, str(update.effective_chat.id))
         await context.bot.send_message(
-            text='Book added', chat_id=update.effective_chat.id
+            text='Book added to monitoring. Searching will begin shortly.', chat_id=update.effective_chat.id
         )
     except ValueError as ex:
         await context.bot.send_message(
