@@ -120,7 +120,8 @@ async def detail_book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if book["seriesTitle"]:
         book_str = f'{book_str} ({book["seriesTitle"]})'
     rating = book.get('ratings', {}).get('value', 0)
-    book_str = f"{book_str} - {author}\n\n{book.get('overview', '')}\n\nRating: {rating}\n\n{book_id} / {book.get('id')}\n\n{book.get('authorId')}"
+    book_str = f"{book_str} - {author}\n\n{book.get('overview', '')}\n\nRating: {rating}\nForeign Book ID:{book_id}\n" \
+               f"Imported Book ID: {book.get('id')}\nAuthor Id:{book.get('authorId')}"
     btns = [InlineKeyboardButton("Click here to add", callback_data=f"confirm_{book_id}")]
     await context.bot.send_message(
         text=book_str,
@@ -134,7 +135,8 @@ async def confirm_book_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     await context.bot.send_message(
-        text='Please wait while your book is added to monitoring. This may take a 10-15 seconds.', chat_id=update.effective_chat.id
+        text='Please wait while your book is added to monitoring. This may take a 10-15 seconds.',
+        chat_id=update.effective_chat.id
     )
     book_id = str(query.data.split('_')[-1])
     book = context.user_data['book_cache'][book_id]
