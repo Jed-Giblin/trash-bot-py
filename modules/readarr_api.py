@@ -69,7 +69,6 @@ class ReadarrApi:
             schema['name'] = f'tg:{user}'
             schema['fields'] = [{'name': 'botToken', 'value': bot_token}, {'name': 'chatId', 'value': user}]
             schema['tags'].extend(tags)
-            for x in ['onAuthorDelete', 'onBookFileDelete', 'onDownloadFailure', 'onGrab', 'onImportFailure']:
+            for x in ['onAuthorDelete', 'onBookFileDelete', 'onDownloadFailure', 'onReleaseImport', 'onImportFailure']:
                 schema[x] = True
             self.__client.add_notification(schema)
-            self.__client.lookup_book()
