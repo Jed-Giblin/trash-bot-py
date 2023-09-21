@@ -79,8 +79,13 @@ async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['book_cache'] = {}
     context.user_data['downloads'] = []
 
+    await context.bot.send_message(
+        text=f'Beginning search for "{search_str}". This may take up to a minute while results are compiled',
+        chat_id=update.effective_chat.id
+    )
+
     btns = []
-    for book in sorted(context.user_data['readarr'].search_new_books(search_str),
+    for book in sorted(context.user_data['readarr'].search_books(search_str),
                        key=(lambda x: x.get('book', {}).get('ratings', {}).get('value', 0)), reverse=True)[
                 0:50]:
         book = book.get('book')
@@ -120,8 +125,8 @@ async def detail_book(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if book["seriesTitle"]:
         book_str = f'{book_str} ({book["seriesTitle"]})'
     rating = book.get('ratings', {}).get('value', 0)
-    book_str = f"{book_str} - {author}\n\n{book.get('overview', '')}\n\nRating: {rating}\nForeign Book ID:{book_id}\n" \
-               f"Imported Book ID: {book.get('id')}\nAuthor Id:{book.get('authorId')}"
+    book_str = f"{book_str} - {author}\n\n{book.get('overview', '')}\n\nRating: {rating}\nForeign Book ID: {book_id}\n" \
+               f"Imported Book ID: {book.get('id')}\nAuthor Id: {book.get('authorId')}"
     btns = [InlineKeyboardButton("Click here to add", callback_data=f"confirm_{book_id}")]
     await context.bot.send_message(
         text=book_str,
@@ -135,7 +140,8 @@ async def confirm_book_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     query = update.callback_query
     await query.answer()
     await context.bot.send_message(
-        text='Please wait while your book is added to monitoring. This may take a 10-15 seconds.',
+        text='Please wait while your book is added to monitoring. This may take a up to a minute while the author '
+             'and title are being added.',
         chat_id=update.effective_chat.id
     )
     book_id = str(query.data.split('_')[-1])
