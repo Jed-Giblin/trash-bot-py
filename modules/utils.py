@@ -1,5 +1,4 @@
 import logging
-from singleton_decorator import singleton
 
 SEASON_UPDATE = {"monitored": False}
 
@@ -14,6 +13,7 @@ def manage_seasons(seasons):
 class ModTypes:
     CONVERSATION = 1
     COMMAND_DRIVEN = 2
+
 
 class CustomFormatter(logging.Formatter):
     """Logging Formatter to add colors and count warning / errors"""
@@ -40,7 +40,6 @@ class CustomFormatter(logging.Formatter):
         return formatter.format(record)
 
 
-@singleton
 class TrashLogger(object):
     """Singleton logging class to be used to keep logging levels and color across any script/lib"""
 
