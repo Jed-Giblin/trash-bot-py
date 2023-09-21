@@ -80,7 +80,7 @@ async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
     context.user_data['downloads'] = []
 
     await context.bot.send_message(
-        text=f'Beginning search for "{search_str}". This may take up to a minute while results are compiled',
+        text=f'Beginning search for "{search_str}". This may take up to a minute while results are compiled.',
         chat_id=update.effective_chat.id
     )
 
