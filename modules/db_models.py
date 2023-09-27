@@ -39,10 +39,13 @@ class TGUser:
         self.radarr_token = kwargs.get("radarr_token", None)
         self.readarr_hostname = kwargs.get("readarr_hostname", None)
         self.readarr_token = kwargs.get("readarr_token", None)
+        self.del_msg_list = []
 
     def __setstate__(self, repr):
         self.__dict__ = repr
         # Add new fields below this line
+        # If we are loading from Pickle, those messages that are pending delete might be old / drop them
+        self.del_msg_list = []
 
     def __setitem__(self, key, item):
         self.__dict__[key] = item
@@ -79,7 +82,7 @@ class TGUser:
         :return:
         """
         return {
-            'sonarr_hostname': self.sonarr_hostname, 'sonarr_token': self.sonarr_token
+            'host_url': f'https://{self.sonarr_hostname}', 'api_key': self.sonarr_token, 'ver_uri': '/v3'
         }
 
     def get_radarr_settings(self):

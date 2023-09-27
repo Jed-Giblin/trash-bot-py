@@ -43,7 +43,7 @@ class CustomFormatter(logging.Formatter):
 class TrashLogger(object):
     """Singleton logging class to be used to keep logging levels and color across any script/lib"""
 
-    def __init__(self, name, level=logging.INFO):
+    def __init__(self, name='Trash', level=logging.INFO):
         """
         Generates a logger object that will be used across all scripts/libs that utilize this logging class
 
