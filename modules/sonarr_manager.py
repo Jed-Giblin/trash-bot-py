@@ -175,7 +175,7 @@ async def confirm_show_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     del context.user_data['show_cache']
     await context.bot.send_message(text='Adding Show!', chat_id=update.effective_chat.id)
     res = context.user_data.sonarr.add_series(
-        setup_show(show, f'tg:{update.effective_user.id}', context.user_data['sonarr']), quality_profile_id=1,
+        setup_show(show, f'tg:{update.effective_user.id}', context.user_data.sonarr), quality_profile_id=1,
         monitored=True, root_dir='/tv', language_profile_id=1)
     await send_and_delete(context, chat_id=update.effective_chat.id,
                           message='Successfully added shows. Trying to search for the latest season now')
@@ -261,7 +261,7 @@ async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return ConversationHandler.END
     tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_user.id}',
-                      context.user_data['sonarr'].get_tag_detail()), None)
+                      context.user_data.sonarr.get_tag_detail()), None)
     btns = []
     for series_id in tag.get("seriesIds"):
         show = context.user_data.sonarr.get_series(id_=series_id)
