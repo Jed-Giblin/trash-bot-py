@@ -48,6 +48,7 @@ class TGUser:
         # Add new fields below this line
         # If we are loading from Pickle, those messages that are pending delete might be old / drop them
         self.del_msg_list = []
+        self._sonarr = None
 
     def __setitem__(self, key, item):
         self.__dict__[key] = item
