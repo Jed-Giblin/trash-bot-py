@@ -1,6 +1,8 @@
 import datetime
 import logging
 import inspect
+import os
+
 import telegram.error
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
@@ -204,18 +206,16 @@ async def track_add_progress(update: Update, context: ContextTypes.DEFAULT_TYPE)
     _, _, show_id, _, season_filter = query.data.split('_')
     logger.info(f'Firing track_add_progress Job for show {show_id}')
     await send_and_delete(context, chat_id=update.effective_chat.id,
-                          message="Im going to wait a bit, check the status and I'll send you updates")
+                          message="Im setting this show up for notifs for you.")
     context.job_queue.run_once(
-        callback=track_show_add_progress,
+        callback=setup_notifications,
         when=30.0,
         chat_id=update.effective_chat.id,
         user_id=update.effective_chat.id,
         name=f'track_show_add_progress_{show_id}',
         data={
-            'queue_only': False,
             'show_id': show_id,
             'chat_id': update.effective_chat.id,
-            'season_filter': season_filter
         }
     )
     await query.answer()
@@ -223,99 +223,23 @@ async def track_add_progress(update: Update, context: ContextTypes.DEFAULT_TYPE)
     return ConversationHandler.END
 
 
-async def track_show_add_progress(context: ContextTypes.DEFAULT_TYPE):
+async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
+    logger.debug(f'Firing job: {inspect.stack()[0][3]}')
     job = context.job
     show_id = job.data.get("show_id")
-    season_filter = job.data.get("season_filter")
-    logger.info(f'Firing track_show_add_progress Job for show {show_id}')
-    try:
-        series = context.user_data.sonarr.get_series(id_=show_id)
-        check_queue = await output_progress(context, series, season_filter)
-        if check_queue:
-            await send_and_delete(context, chat_id=job.data.get("chat_id"),
-                                  message="I'll need some more time to give you more details.")
-            context.job_queue.run_once(
-                callback=track_queue,
-                when=15.0,
-                chat_id=job.data.get("chat_id"),
-                user_id=job.data.get("chat_id"),
-                name=f'track_show_add_progress_{show_id}',
-                data={
-                    'chat_id': job.data.get("chat_id")
-                }
-            )
-            return None
-        # The show is 100% downloaded
-        context.job_queue.run_once(
-            callback=cleanup_messages,
-            when=15.0,
-            chat_id=job.data.get("chat_id"),
-            user_id=job.data.get("chat_id"),
-            name=f'track_show_add_progress_{show_id}',
-            data={
-                'show_id': show_id,
-                'chat_id': job.data.get("chat_id")
-            }
-        )
-    except telegram.error.BadRequest as ex:
-        logger.exception(f'Failed communicating with Telegram API:', exc_info=True)
-        context.job_queue.run_once(
-            callback=cleanup_messages,
-            when=15.0,
-            chat_id=job.data.get("chat_id"),
-            user_id=job.data.get("chat_id"),
-            name=f'track_show_add_progress_{show_id}',
-            data={
-                'show_id': show_id,
-                'chat_id': job.data.get("chat_id")
-            }
-        )
-        pass
-
-
-async def track_queue(context: ContextTypes.DEFAULT_TYPE):
-    job = context.job
-    show_id = job.data.get("show_id")
-    chat_id = job.data.get("chat_id")
-    episodes_pending, queue_depth = 0, 0
-    max_complt_time = None
-    loader = await context.bot.send_animation(chat_id=chat_id, animation="./loading.gif")
-    for episode in context.user_data.sonarr.get_queue(include_episode=True).get("records"):
-        if episode['seriesId'] == show_id:
-            episodes_pending += 1
-        complt_time = datetime.datetime.strptime(episode['estimatedCompletionTime'].split('.')[0],
-                                                 "%Y-%M-%dT%H:%m:%S.%f%z")
-        if not max_complt_time or complt_time > max_complt_time:
-            max_complt_time = complt_time
-        queue_depth += 1
-    await loader.delete()
-    message = f'There are {queue_depth} things in the queue and your show has {episodes_pending} in queue. The last one is estimated to finish at {max_complt_time}'
-    await context.bot.send_message(chat_id=chat_id, text=message)
-
-
-async def output_progress(context: ContextTypes.DEFAULT_TYPE, series, season_filter):
-    monitored_count = 0
-    messages = []
-    check_queue = False
-    job = context.job
-    await send_and_delete(context, chat_id=job.data.get("chat_id"),
-                          message='If I skip a season, its unwanted and not-monitored.')
-    for season in series.get("seasons"):
-        if season_filter != 'all' and int(season_filter) != season['seasonNumber']:
-            continue
-        if season['monitored']:
-            monitored_count += 1
-            messages.append(
-                f'Season {season["seasonNumber"]} is {season["statistics"]["percentOfEpisodes"]}% downloaded')
-            if int(season["statistics"]["percentOfEpisodes"]) != 100:
-                check_queue = True
-    if 'load_id' in job.data:
-        await context.bot.delete_message(chat_id=job.data.get("chat_id"), message_id=job.data.get("load_id"))
-    for message in messages:
-        m = await context.bot.send_message(chat_id=job.data.get("chat_id"),
-                                           text=message)
-        context.user_data.del_msg_list.append(m.id)
-    return check_queue
+    user_id = job.data.get("chat_id")
+    tag = context.user_data.sonarr.create_tag(label=f'tg:{user_id}:notify')
+    series = context.user_data.sonarr.get_series(id_=show_id)
+    series['tags'].append(int(tag.get("id")))
+    context.user_data.sonarr.upd_series(data=series)
+    templ = context.user_data.sonarr.get_notification_schema(implementation='Telegram')[0]
+    templ['onGrab'] = True
+    templ['onDownload'] = True
+    templ['onSeriesDelete'] = True
+    templ['name'] = f'tg:{user_id}:notify'
+    templ['fields'][0]['value'] = os.getenv('TOKEN')
+    templ['fields'][1]['value'] = str(user_id)
+    context.user_data.sonarr.add_notification(data=templ)
 
 
 async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -360,15 +284,19 @@ async def manage_show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id=update.effective_chat.id,
         photo=show.get("images")[0].get("remoteUrl")
     )
+    buttons = [
+        [InlineKeyboardButton(text='Delete Show', callback_data=f'delete_{show_id}')],
+        [InlineKeyboardButton(text='Download More Seasons', callback_data=f'man_season_{show_id}')],
+        [InlineKeyboardButton("Quit", callback_data="quit")]
+    ]
+    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_chat.id}:notify',
+                      context.user_data.sonarr.get_tag_detail()), None)
+    if int(show_id) in tag.get("seriesIds"):
+        buttons.append([InlineKeyboardButton(text='Remove Notifications', callback_data=f'remove_notif_{show_id}')])
     await context.bot.send_message(
         text='What would you like to do?',
         chat_id=update.effective_chat.id,
-        reply_markup=InlineKeyboardMarkup(
-            [
-                [InlineKeyboardButton(text='Delete Show', callback_data=f'delete_{show_id}')],
-                [InlineKeyboardButton(text='Download More Seasons', callback_data=f'man_season_{show_id}')]
-            ]
-        )
+        reply_markup=InlineKeyboardMarkup(buttons)
     )
     return MANAGE_SHOW
 
@@ -390,6 +318,19 @@ async def delete_show(update: Update, context: ContextTypes.DEFAULT_TYPE):
             chat_id=update.effective_chat.id,
             text='Failed to delete show'
         )
+    return ConversationHandler.END
+
+
+async def remove_notifications(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    query = update.callback_query
+    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_chat.id}:notify',
+                      context.user_data.sonarr.get_tag()), None)
+    show_id = query.data.split('_')[-1]
+    series = context.user_data.sonarr.get_series(id_=show_id)
+    series['tags'].remove(tag.get("id"))
+    context.user_data.sonarr.upd_series(data=series)
+    await query.answer(text='Done!')
+    await query.edit_message_text(text='Goodbye')
     return ConversationHandler.END
 
 
@@ -483,7 +424,9 @@ CONVERSATION = ConversationHandler(
         ],
         MANAGE_SHOW: [
             CallbackQueryHandler(delete_show, pattern="^delete_[0-9]+$"),
-            CallbackQueryHandler(manage_show_seaons, pattern="^man_season_[0-9]+$")
+            CallbackQueryHandler(remove_notifications, pattern="^remove_notif_[0-9]+$"),
+            CallbackQueryHandler(manage_show_seaons, pattern="^man_season_[0-9]+$"),
+            CallbackQueryHandler(stop, pattern="^quit$")
         ],
         MANAGE_SHOW_SEASON: [
             CallbackQueryHandler(stop, pattern="^quit$"),
