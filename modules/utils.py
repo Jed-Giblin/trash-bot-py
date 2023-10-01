@@ -3,10 +3,12 @@ import logging
 SEASON_UPDATE = {"monitored": False}
 
 
-def manage_seasons(seasons):
+def manipulate_seasons(seasons, show_type):
     sorted_seasons = sorted(seasons, key=lambda s: s.get("seasonNumber"))
     edited_seasons = [{**season, **SEASON_UPDATE} for season in sorted_seasons]
-    edited_seasons[-1]['monitored'] = True
+    # Shows that are over, we instead want the first season
+    mon_index = -1 if show_type != "ended" else 1
+    edited_seasons[mon_index]['monitored'] = True
     return edited_seasons
 
 
@@ -23,7 +25,7 @@ class CustomFormatter(logging.Formatter):
     red = "\x1b[31;21m"
     bold_red = "\x1b[31;1m"
     reset = "\x1b[0m"
-    format = "[%(asctime)s][%(process)s][%(levelname)s][%(filename)s:%(lineno)s][%(funcName)s()]: %(message)s"
+    format = "[%(asctime)s][%(process)s][%(levelname)s][%(filename)s:%(lineno)s]: %(message)s"
 
     FORMATS = {
         logging.DEBUG: grey + format + reset,

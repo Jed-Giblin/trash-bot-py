@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pyarr import SonarrAPI
 
 
 class TGChat:
@@ -40,6 +41,7 @@ class TGUser:
         self.readarr_hostname = kwargs.get("readarr_hostname", None)
         self.readarr_token = kwargs.get("readarr_token", None)
         self.del_msg_list = []
+        self._sonarr = None
 
     def __setstate__(self, repr):
         self.__dict__ = repr
@@ -55,6 +57,11 @@ class TGUser:
 
     def __delitem__(self, key):
         del self.__dict__[key]
+
+    def sonarr(self):
+        if not self._sonarr:
+            self._sonarr = SonarrAPI(**self.get_sonarr_settings())
+        return self._sonarr
 
     @staticmethod
     def from_dict(**kwargs):
@@ -75,6 +82,10 @@ class TGUser:
 
     def share(self):
         return hex(self.id)
+
+    def is_configured(self, prop):
+        if not getattr(self, prop):
+            raise ValueError
 
     def get_sonarr_settings(self):
         """

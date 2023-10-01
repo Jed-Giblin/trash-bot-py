@@ -10,9 +10,11 @@ from telegram.warnings import PTBUserWarning
 from modules.db_models import TGChat, TGUser
 from modules.utils import ModTypes, TrashLogger
 from warnings import filterwarnings
+
 logger = TrashLogger(name='Trash').logger
 load_dotenv()
 filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
+
 
 def main():
     modules = ['sonarr_manager', 'setup_manager', 'radarr_manager', 'readarr_manager', 'poll_manager', 'trash']
