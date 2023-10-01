@@ -1,4 +1,5 @@
 from __future__ import annotations
+from pyarr import SonarrAPI
 
 
 class TGChat:
@@ -39,10 +40,14 @@ class TGUser:
         self.radarr_token = kwargs.get("radarr_token", None)
         self.readarr_hostname = kwargs.get("readarr_hostname", None)
         self.readarr_token = kwargs.get("readarr_token", None)
+        self.del_msg_list = []
+        self._sonarr = None
 
     def __setstate__(self, repr):
         self.__dict__ = repr
         # Add new fields below this line
+        # If we are loading from Pickle, those messages that are pending delete might be old / drop them
+        self.del_msg_list = []
 
     def __setitem__(self, key, item):
         self.__dict__[key] = item
@@ -52,6 +57,11 @@ class TGUser:
 
     def __delitem__(self, key):
         del self.__dict__[key]
+
+    def sonarr(self):
+        if not self._sonarr:
+            self._sonarr = SonarrAPI(**self.get_sonarr_settings())
+        return self._sonarr
 
     @staticmethod
     def from_dict(**kwargs):
@@ -73,13 +83,17 @@ class TGUser:
     def share(self):
         return hex(self.id)
 
+    def is_configured(self, prop):
+        if not getattr(self, prop):
+            raise ValueError
+
     def get_sonarr_settings(self):
         """
         This is a wrapper to get sonarr settings. We can easily add to this dict, to pass my kwargs to the API constructor
         :return:
         """
         return {
-            'sonarr_hostname': self.sonarr_hostname, 'sonarr_token': self.sonarr_token
+            'host_url': f'https://{self.sonarr_hostname}', 'api_key': self.sonarr_token, 'ver_uri': '/v3'
         }
 
     def get_radarr_settings(self):
