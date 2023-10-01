@@ -9,6 +9,7 @@ from telegram.ext import ContextTypes, Application, ConversationHandler, Command
     MessageHandler, filters
 # from modules.sonarr_api import SonarrApi
 from pyarr import SonarrAPI
+from pyarr.exceptions import PyarrConnectionError
 from modules.utils import ModTypes, manipulate_seasons
 
 MOD_TYPE = ModTypes.CONVERSATION
@@ -228,7 +229,11 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
     job = context.job
     show_id = job.data.get("show_id")
     user_id = job.data.get("chat_id")
-    tag = context.user_data.sonarr.create_tag(label=f'tg:{user_id}:notify')
+    try:
+        tag = next(filter(lambda x: x.get("label") == f'tg:{user_id}:notify',
+                          context.user_data.sonarr.get_tag()), None)
+    except PyarrConnectionError:
+        tag = context.user_data.sonarr.create_tag(label=f'tg:{user_id}:notify')
     series = context.user_data.sonarr.get_series(id_=show_id)
     series['tags'].append(int(tag.get("id")))
     context.user_data.sonarr.upd_series(data=series)
