@@ -11,6 +11,8 @@ def manipulate_seasons(seasons, show_type):
     edited_seasons[mon_index]['monitored'] = True
     return edited_seasons
 
+def manage_seasons(seasons):
+    pass
 
 class ModTypes:
     CONVERSATION = 1
