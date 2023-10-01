@@ -58,6 +58,7 @@ class TGUser:
     def __delitem__(self, key):
         del self.__dict__[key]
 
+    @property
     def sonarr(self):
         if not self._sonarr:
             self._sonarr = SonarrAPI(**self.get_sonarr_settings())
@@ -89,7 +90,8 @@ class TGUser:
 
     def get_sonarr_settings(self):
         """
-        This is a wrapper to get sonarr settings. We can easily add to this dict, to pass my kwargs to the API constructor
+        This is a wrapper to get so
+        narr settings. We can easily add to this dict, to pass my kwargs to the API constructor
         :return:
         """
         return {
