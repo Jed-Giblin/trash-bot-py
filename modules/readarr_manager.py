@@ -155,7 +155,9 @@ async def confirm_book_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         context.user_data['readarr'].add_book(book, str(update.effective_chat.id))
         await context.bot.send_message(
-            text='Book added to monitoring. Searching will begin shortly.', chat_id=update.effective_chat.id
+            text='Book added to monitoring. Searching will begin shortly. '
+                 'Note: Monitoring/Searching for a book does not guarantee that it will be found and downloaded.',
+            chat_id=update.effective_chat.id
         )
     except ValueError as ex:
         await context.bot.send_message(
