@@ -84,7 +84,8 @@ async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
         chat_id=update.effective_chat.id
     )
 
-    btns = []
+    btns = [[InlineKeyboardButton(text="Quit! (not a book)", callback_data=f'quit')]]
+    found_books = False
     for book in sorted(context.user_data['readarr'].search_books(search_str),
                        key=(lambda x: x.get('book', {}).get('ratings', {}).get('value', 0)), reverse=True)[
                 0:50]:
@@ -99,10 +100,15 @@ async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
             slug = f'{slug} ({book["seriesTitle"]})'
         slug = f'{slug} - {author}'
         btns.append([InlineKeyboardButton(text=slug, callback_data=f"detail_{bk_id}")])
+        found_books = True
 
-    btns.insert(0, [InlineKeyboardButton(text="Quit! (not a book)", callback_data=f'quit')])
+    if found_books:
+        text_content = 'Here are the top results. You can also search again by sending me a new message'
+    else:
+        text_content = 'Search returned no results at this time, please try again or use a different search term'
+
     await context.bot.send_message(
-        text='Here are the top results. You can also search again by sending me a new message',
+        text=text_content,
         chat_id=update.effective_chat.id,
         reply_markup=InlineKeyboardMarkup(btns)
     )
@@ -149,7 +155,9 @@ async def confirm_book_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     try:
         context.user_data['readarr'].add_book(book, str(update.effective_chat.id))
         await context.bot.send_message(
-            text='Book added to monitoring. Searching will begin shortly.', chat_id=update.effective_chat.id
+            text='Book added to monitoring. Searching will begin shortly. '
+                 'Note: Monitoring/Searching for a book does not guarantee that it will be found and downloaded.',
+            chat_id=update.effective_chat.id
         )
     except ValueError as ex:
         await context.bot.send_message(
