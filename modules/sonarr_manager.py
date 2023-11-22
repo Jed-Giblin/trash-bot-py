@@ -413,6 +413,7 @@ CONVERSATION = ConversationHandler(
             MessageHandler(filters=filters.TEXT, callback=search_sonarr_new)
         ],
         SHOW_PICKER: [
+            CallbackQueryHandler(stop, pattern="^quit$"),
             CallbackQueryHandler(show_clicked, pattern="^add_show_[0-9]+$")
         ],
         TRACK_PROGRESS: [
