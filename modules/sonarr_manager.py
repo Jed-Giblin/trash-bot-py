@@ -103,6 +103,7 @@ async def search_sonarr_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
         context.user_data['show_cache'][show_id] = show
         buttons.append(InlineKeyboardButton(show["title"], callback_data=f"add_show_{show_id}"))
 
+    buttons.append(InlineKeyboardButton("Quit (not a show)", callback_data='quit'))
     markup = [[btn] for btn in buttons]
     context.user_data['search_results'] = markup
     await loader.delete()
