@@ -1,4 +1,7 @@
 from __future__ import annotations
+
+import logging
+
 from pyarr import SonarrAPI
 
 
@@ -10,10 +13,20 @@ class TGChat:
         self.polls = kwargs.get("polls", [])
         self.all = kwargs.get("all", [])
         self.name = kwargs.get("name", "")
+        self.oc_sched = kwargs.get("oc_sched", [])
+        self.members = kwargs.get("members", [])
 
     def __setstate__(self, repr):
         self.__dict__ = repr
         # Add new fields below this line
+        values = {
+            'members': [],
+            'oc_sched': [],
+        }
+        for field in values.keys():
+            if field not in repr:
+                print(f'Found new field {field}')
+                setattr(self, field, values[field])
 
     @staticmethod
     def from_dict(**kwargs):
@@ -29,6 +42,9 @@ class TGChat:
     def save_poll(self, poll):
         self.polls.append(poll)
 
+    def save_oc_sched(self, sched):
+        self.oc_sched.extend(sched)
+
 
 class TGUser:
     def __init__(self, **kwargs):
@@ -41,14 +57,24 @@ class TGUser:
         self.readarr_hostname = kwargs.get("readarr_hostname", None)
         self.readarr_token = kwargs.get("readarr_token", None)
         self.del_msg_list = []
+        self.oc_sched = kwargs.get("oc_sched", [])
+        self.full_name = kwargs.get("full_name", "")
         self._sonarr = None
 
     def __setstate__(self, repr):
         self.__dict__ = repr
         # Add new fields below this line
         # If we are loading from Pickle, those messages that are pending delete might be old / drop them
-        self.del_msg_list = []
-        self._sonarr = None
+        values = {
+            'del_msg_list': [],
+            '_sonarr': None,
+            'oc_sched': [],
+            'full_name': ''
+        }
+        for field in values.keys():
+            if field not in repr:
+                print(f'Found new field {field}')
+                setattr(self, field, values[field])
 
     def __setitem__(self, key, item):
         self.__dict__[key] = item
@@ -72,6 +98,9 @@ class TGUser:
 
     def get_config(self):
         return f'Shows: {self.sonarr_hostname}, Movies: {self.radarr_hostname}, Books: {self.readarr_hostname}, Name: {self.name}'
+
+    def debug(self):
+        return f'sched: {self.oc_sched}, fn: {self.full_name}'
 
     def save_servarr(self, prefix, name, token):
         setattr(self, f'{prefix}_hostname', name)
