@@ -113,7 +113,7 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
     :return:
     """
     wb = load_workbook('./roster.xlsx')
-    ws = next(filter(lambda x: x.title == 'RTP-EM7-OnCall', wb.worksheets))
+    ws = next(filter(lambda x: x.title == os.getenv('WS_NAME'), wb.worksheets))
     context.chat_data.oc_sched = []
     um = {}
     udl = context.application.user_data
@@ -141,11 +141,10 @@ async def setup_downloader(context: ContextTypes.DEFAULT_TYPE):
     :param context:
     :return:
     """
-    context.job_queue.run_once(
+    context.job_queue.run_daily(
         callback=fetch_xls,
-        # time=datetime.time(hour=0, minute=15,
-        #                    tzinfo=pytz.timezone('America/New_York')),
-        when=5,
+        time=datetime.time(hour=0, minute=15,
+                           tzinfo=pytz.timezone('America/New_York')),
         chat_id=int('-1001401984428'),
         name='fetch_xls'
     )

@@ -10,7 +10,7 @@ from telegram.ext import ContextTypes, Application, ConversationHandler, Command
 # from modules.sonarr_api import SonarrApi
 from pyarr import SonarrAPI
 from pyarr.exceptions import PyarrConnectionError
-from modules.utils import ModTypes, manipulate_seasons
+from modules.utils import ModTypes, manipulate_seasons, update_user, dm_only
 
 MOD_TYPE = ModTypes.CONVERSATION
 logger = logging.getLogger('Trash')
@@ -37,17 +37,15 @@ def ordinal(n: int):
     return str(n) + suffix
 
 
+@dm_only
+@update_user
 async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
-    if update.effective_chat.type != "private":
-        await update.message.reply_text(
-            "That's only allowed in private chats.", quote=True
-        )
-        return ConversationHandler.END
-
-    if context.user_data.name == "":
-        context.user_data.name = update.effective_user.name
-
+    """
+    Entry point for the /shows command
+    :param update:
+    :param context:
+    :return:
+    """
     reply_keyboard = [
         [InlineKeyboardButton("Add Shows", callback_data="add_shows")],
         [InlineKeyboardButton("Manage Shows", callback_data="list_user_shows")],

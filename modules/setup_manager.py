@@ -5,7 +5,7 @@ import os
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
-from modules.utils import ModTypes
+from modules.utils import ModTypes, STOP_BUTTON, dm_only, update_user
 from modules.readarr_api import ReadarrApi
 
 MOD_TYPE = ModTypes.CONVERSATION
@@ -28,18 +28,9 @@ ADD_SUCCESS = 'Your server has been configured. You can use the following code (
               'to share your server to others:'
 
 
+@dm_only
+@update_user
 async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != "private":
-        await update.message.reply_text(
-            "That's only allowed in private chats.", quote=True
-        )
-        return ConversationHandler.END
-
-    context.user_data.full_name = f'{update.effective_user.first_name} {update.effective_user.last_name}'
-
-    if context.user_data.full_name == "":
-        context.user_data.name = update.effective_user.name
-
     reply_keyboard = [
         [
             InlineKeyboardButton("Add Sonarr", callback_data="add_sonarr"),
@@ -73,7 +64,8 @@ async def add_sonarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Please provide a hostname for your server"
+        text="Please provide a hostname for your server",
+        reply_markup=InlineKeyboardMarkup([STOP_BUTTON])
     )
 
     return ADD_SONARR_HOSTNAME
@@ -130,7 +122,8 @@ async def add_radarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Please provide a hostname for your Radarr server"
+        text="Please provide a hostname for your Radarr server",
+        reply_markup=InlineKeyboardMarkup([STOP_BUTTON])
     )
 
     return ADD_RADARR_HOSTNAME
@@ -185,7 +178,8 @@ async def add_readarr(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await query.message.delete()
     await context.bot.send_message(
         chat_id=update.effective_chat.id,
-        text="Please provide a hostname for your Readarr server"
+        text="Please provide a hostname for your Readarr server",
+        reply_markup=InlineKeyboardMarkup([STOP_BUTTON])
     )
 
     return ADD_READARR_HOSTNAME
@@ -243,9 +237,22 @@ async def start_share_access(update: Update, context: ContextTypes.DEFAULT_TYPE)
 
     await context.bot.send_message(
         chat_id=query.message.chat_id,
-        text="Please enter the share code you want to use"
+        text="Please enter the share code you want to use",
+        reply_markup=InlineKeyboardMarkup([STOP_BUTTON])
     )
     return SHARE_ACCESS
+
+
+async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Stop processing and exit the flow
+    :param update:
+    :param context:
+    :return:
+    """
+    await update.callback_query.answer()
+    await update.callback_query.message.edit_text('Goodbye', reply_markup=None)
+    return ConversationHandler.END
 
 
 async def share_access(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -294,24 +301,28 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(start_share_access, pattern="^share_access"),
         ],
         ADD_SONARR_HOSTNAME: [
+            CallbackQueryHandler(stop, pattern="^quit$"),
             MessageHandler(filters=filters.TEXT, callback=add_sonarr_server)
         ],
         ADD_SONARR_TOKEN: [
             MessageHandler(filters=filters.TEXT, callback=add_sonarr_token)
         ],
         ADD_RADARR_HOSTNAME: [
+            CallbackQueryHandler(stop, pattern="^quit$"),
             MessageHandler(filters=filters.TEXT, callback=add_radarr_hostname)
         ],
         ADD_RADARR_TOKEN: [
             MessageHandler(filters=filters.TEXT, callback=add_radarr_token)
         ],
         ADD_READARR_HOSTNAME: [
+            CallbackQueryHandler(stop, pattern="^quit$"),
             MessageHandler(filters=filters.TEXT, callback=add_readarr_hostname)
         ],
         ADD_READARR_TOKEN: [
             MessageHandler(filters=filters.TEXT, callback=add_readarr_token)
         ],
         SHARE_ACCESS: [
+            CallbackQueryHandler(stop, pattern="^quit$"),
             MessageHandler(filters=filters.TEXT, callback=share_access)
         ]
     },

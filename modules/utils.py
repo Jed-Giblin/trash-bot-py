@@ -1,11 +1,12 @@
 import logging
 
 import telegram
-from telegram import Update
+from telegram import Update, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
 
 SEASON_UPDATE = {"monitored": False}
 premium_chat_whitelist = [int(-1001401984428)]
+STOP_BUTTON = [InlineKeyboardButton(text='Quit (Stop talking to me Trashbot)', callback_data=f'quit')]
 
 
 def manipulate_seasons(seasons, show_type):
@@ -84,6 +85,7 @@ def premium_only(wrapped_method):
     :param wrapped_method:
     :return:
     """
+
     async def wrapper(*args, **kwargs):
         update, context = args
         wl = False
@@ -106,6 +108,7 @@ def dm_only(wrapped_method):
     :param wrapped_method:
     :return:
     """
+
     async def wrapper(*args, **kwargs):
         update, context = args
         if update.effective_chat.type != "private":
@@ -113,7 +116,7 @@ def dm_only(wrapped_method):
                 "That's only allowed in private chats.", quote=True
             )
             return ConversationHandler.END
-        return wrapped_method(*args, **kwargs)
+        return await wrapped_method(*args, **kwargs)
 
     return wrapper
 
@@ -124,8 +127,10 @@ def update_user(wrapped_method):
     :param wrapped_method:
     :return:
     """
+
     async def wrapper(*args, **kwargs):
         update, context = args
         context.user_data.full_name = f'{update.effective_user.first_name} {update.effective_user.last_name}'
-        return wrapped_method(*args, **kwargs)
+        return await wrapped_method(*args, **kwargs)
+
     return wrapper
