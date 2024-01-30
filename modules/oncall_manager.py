@@ -3,6 +3,7 @@ import logging
 import inspect
 import os
 import pytz
+import requests
 import telegram.error
 import datetime
 from office365.runtime.auth.client_credential import ClientCredential
@@ -89,6 +90,25 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
+async def check_ff(context: ContextTypes.DEFAULT_TYPE):
+    res = requests.post('https://sso.store.square-enix-games.com/api/validate-cart', json={
+        "email": os.getenv("EMAIL"), "store": "https://na.store.square-enix-games.com",
+        "cart": [{"id": "3054", "quantity": 1, "sku": "85038", "product_type": "physical", "variant": "3917"}],
+        "customer_id": int(os.getenv('CID'))}
+    )
+    if res:
+        try:
+            await context.bot.send_message(chat_id=677179937, text=str(res.json()))
+        except Exception:
+            pass
+    context.job_queue.run_once(
+        callback=check_ff,
+        when=300,
+        chat_id=int('-1001401984428'),
+        name='check_ff'
+    )
+
+
 async def fetch_xls(context: ContextTypes.DEFAULT_TYPE):
     """
     Called as a job inside PyTGB to download the XLS file
@@ -112,7 +132,7 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
     :param context:
     :return:
     """
-    wb = load_workbook('./roster.xlsx')
+    wb = load_workbook('/tmp/roster.xlsx')
     ws = next(filter(lambda x: x.title == os.getenv('WS_NAME'), wb.worksheets))
     context.chat_data.oc_sched = []
     um = {}
@@ -146,6 +166,12 @@ async def setup_downloader(context: ContextTypes.DEFAULT_TYPE):
         when=5,
         chat_id=int('-1001401984428'),
         name='fetch_xls'
+    )
+    context.job_queue.run_once(
+        callback=check_ff,
+        when=5,
+        chat_id=int('-1001401984428'),
+        name='check_ff'
     )
     context.job_queue.run_daily(
         callback=fetch_xls,
