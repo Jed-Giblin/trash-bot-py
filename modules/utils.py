@@ -89,13 +89,16 @@ def premium_only(wrapped_method):
     async def wrapper(*args, **kwargs):
         update, context = args
         wl = False
+        print("Checking premium status")
         for chat_id in premium_chat_whitelist:
+            print(f"Are they in {chat_id}")
             try:
                 await context.bot.get_chat_member(chat_id, context.user_data.id)
                 wl = True
             except telegram.error.BadRequest:
                 pass
         if not wl:
+            print("User not in WL")
             return None
         return await wrapped_method(*args, **kwargs)
 

@@ -141,6 +141,12 @@ async def setup_downloader(context: ContextTypes.DEFAULT_TYPE):
     :param context:
     :return:
     """
+    context.job_queue.run_once(
+        callback=fetch_xls,
+        when=5,
+        chat_id=int('-1001401984428'),
+        name='fetch_xls'
+    )
     context.job_queue.run_daily(
         callback=fetch_xls,
         time=datetime.time(hour=0, minute=15,
