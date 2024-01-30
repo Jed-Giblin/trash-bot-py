@@ -2,7 +2,7 @@ from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKe
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
 from modules.radarr_api import RadarrApi
-from modules.utils import ModTypes
+from modules.utils import ModTypes, dm_only, update_user, STOP_BUTTON
 import requests
 import os
 
@@ -17,19 +17,19 @@ SELECT_SEARCH_RESULT = 21
 CONFIRM_MOVIE_OR_SELECT_NEW = 22
 
 
+@dm_only
+@update_user
 async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.effective_chat.type != "private":
-        await update.message.reply_text(
-            "That's only allowed in private chats.", quote=True
-        )
-        return ConversationHandler.END
+    """
+    Handler for the command /movies
+    :param update:
+    :param context:
+    :return:
+    """
     reply_keyboard = [
         ["Add Movies"],
         ["Manage Movies"],
     ]
-
-    if context.user_data.name == "":
-        context.user_data.name = update.effective_user.name
 
     reply_markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
     await update.message.reply_text(
@@ -40,7 +40,13 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # TODO - Empty context
+    """
+    Called whenever a user clicks cancel
+    :param update:
+    :param context:
+    :return:
+    """
+    clear_cache(context.user_data)
     await update.callback_query.answer()
     await context.bot.send_message(
         text='Goodbye!', chat_id=update.effective_chat.id
@@ -56,17 +62,29 @@ async def manage_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def add_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Handler for responding to "Add Movies" callback
+    :param update:
+    :param context:
+    :return:
+    """
     await update.message.reply_text(
         reply_to_message_id=update.message.id, quote=True,
         text="Whats the movie name you want to add? Send me a message with its name. You can also press quit.",
         allow_sending_without_reply=True,
-        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Quit", callback_data="quit")]])
+        reply_markup=InlineKeyboardMarkup([STOP_BUTTON])
     )
 
     return NEW_MOVIE_SEARCH
 
 
 async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback handler executed when a search query is presented
+    :param update:
+    :param context:
+    :return:
+    """
     search_str = update.message.text
     radarr_config = context.user_data.get_radarr_settings()
     context.user_data['radarr'] = RadarrApi(**radarr_config)
@@ -81,6 +99,7 @@ async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
         slug = f'{movie["title"]} ({movie["year"]})'
         btns.append([InlineKeyboardButton(text=slug, callback_data=f"detail_{mv_id}")])
 
+    btns.append(STOP_BUTTON)
     await context.bot.send_message(
         text='Here are the top 20 results. You can also search again by sending me a new message',
         chat_id=update.effective_chat.id,
@@ -90,6 +109,12 @@ async def list_search_results(update: Update, context: ContextTypes.DEFAULT_TYPE
 
 
 async def detail_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    """
+    Callback handler when a movie is selected from a list of search results
+    :param update:
+    :param context:
+    :return:
+    """
     query = update.callback_query
     await query.answer()
     movie_id = str(query.data.split('_')[-1])
@@ -107,6 +132,11 @@ async def detail_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
         chat_id=update.effective_chat.id,
         reply_markup=InlineKeyboardMarkup([btns])
     )
+    msg = """
+    If this wasn't the movie you wanted,you can: \n1. Click another from the list above\n2.Search again by typing in a name\n3. Quit"
+    """
+    await context.bot.send_message(
+        text=msg)
     return CONFIRM_MOVIE_OR_SELECT_NEW
 
 
@@ -124,10 +154,18 @@ async def confirm_movie_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             text=f'Unable to add movie. {ex}', chat_id=update.effective_chat.id
         )
+    clear_cache(context.user_data)
     return ConversationHandler.END
 
 
 def write_file(path, filename, remote):
+    """
+    Store a local copy of the poster to send. Works better with TG caching then sending a remoteURL
+    :param path:
+    :param filename:
+    :param remote:
+    :return:
+    """
     if not os.path.exists(path):
         os.makedirs(path)
     r = requests.get(remote)
@@ -136,6 +174,16 @@ def write_file(path, filename, remote):
             for chunk in r:
                 f.write(chunk)
     return f'{path}/{filename}'
+
+
+def clear_cache(cache):
+    """
+    Helper function to clear out stored tmp data during user interaction
+    :param cache:
+    :return:
+    """
+    cache['movie_cache'] = {}
+    cache['downloads'] = []
 
 
 CONVERSATION = ConversationHandler(
@@ -157,7 +205,8 @@ CONVERSATION = ConversationHandler(
         CONFIRM_MOVIE_OR_SELECT_NEW: [
             CallbackQueryHandler(stop, pattern="^quit$"),
             CallbackQueryHandler(confirm_movie_add, pattern="^confirm_[0-9]+$"),
-            CallbackQueryHandler(detail_movie, pattern='^detail_[0-9]+$')
+            CallbackQueryHandler(detail_movie, pattern='^detail_[0-9]+$'),
+            MessageHandler(filters=filters.TEXT, callback=list_search_results)
         ]
     },
     fallbacks=[CommandHandler("shows", entry_point)]

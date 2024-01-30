@@ -1,6 +1,12 @@
 import logging
 
+import telegram
+from telegram import Update, InlineKeyboardButton
+from telegram.ext import ContextTypes, ConversationHandler
+
 SEASON_UPDATE = {"monitored": False}
+premium_chat_whitelist = [int(-1001401984428)]
+STOP_BUTTON = [InlineKeyboardButton(text='Quit (Stop talking to me Trashbot)', callback_data=f'quit')]
 
 
 def manipulate_seasons(seasons, show_type):
@@ -11,8 +17,10 @@ def manipulate_seasons(seasons, show_type):
     edited_seasons[mon_index]['monitored'] = True
     return edited_seasons
 
+
 def manage_seasons(seasons):
     pass
+
 
 class ModTypes:
     CONVERSATION = 1
@@ -69,3 +77,63 @@ class TrashLogger(object):
         log_handler.setFormatter(CustomFormatter())
         log.addHandler(log_handler)
         return log
+
+
+def premium_only(wrapped_method):
+    """
+    This decorator will lookup if the user is in a "premium" chat and silently exit if not
+    :param wrapped_method:
+    :return:
+    """
+
+    async def wrapper(*args, **kwargs):
+        update, context = args
+        wl = False
+        print("Checking premium status")
+        for chat_id in premium_chat_whitelist:
+            print(f"Are they in {chat_id}")
+            try:
+                await context.bot.get_chat_member(chat_id, context.user_data.id)
+                wl = True
+            except telegram.error.BadRequest:
+                pass
+        if not wl:
+            print("User not in WL")
+            return None
+        return await wrapped_method(*args, **kwargs)
+
+    return wrapper
+
+
+def dm_only(wrapped_method):
+    """
+    This decortor will force the handler to only allow the command to execute in a DM and notify the user of such
+    :param wrapped_method:
+    :return:
+    """
+
+    async def wrapper(*args, **kwargs):
+        update, context = args
+        if update.effective_chat.type != "private":
+            await update.message.reply_text(
+                "That's only allowed in private chats.", quote=True
+            )
+            return ConversationHandler.END
+        return await wrapped_method(*args, **kwargs)
+
+    return wrapper
+
+
+def update_user(wrapped_method):
+    """
+    This decorator will store user attributes on context data
+    :param wrapped_method:
+    :return:
+    """
+
+    async def wrapper(*args, **kwargs):
+        update, context = args
+        context.user_data.full_name = f'{update.effective_user.first_name} {update.effective_user.last_name}'
+        return await wrapped_method(*args, **kwargs)
+
+    return wrapper

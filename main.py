@@ -17,7 +17,9 @@ filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBU
 
 
 def main():
-    modules = ['sonarr_manager', 'setup_manager', 'radarr_manager', 'readarr_manager', 'poll_manager', 'trash']
+    # trash must always be last, because of the catchall
+    modules = ['sonarr_manager', 'setup_manager', 'radarr_manager', 'readarr_manager', 'poll_manager', 'oncall_manager',
+               'trash']
     context_types = ContextTypes(context=CallbackContext, chat_data=TGChat, user_data=TGUser)
     persistance = EnhancedPicklePersistence(filepath='./db/db.pickle')
     app = ApplicationBuilder().token(os.environ.get("TOKEN")).context_types(context_types).persistence(
@@ -29,7 +31,13 @@ def main():
 
         elif module.MOD_TYPE == ModTypes.COMMAND_DRIVEN:
             app.add_handlers(module.HANDLERS)
+            for m in module.HANDLERS:
+                try:
+                    logger.info(f'Adding support for command /{list(m.commands)[0]}')
+                except AttributeError:
+                    pass
 
+        logger.info(f"Loaded Module: {mod}, Type: {module.MOD_TYPE}")
         try:
             app.job_queue.run_once(module.LOAD_FROM_DB, 5)
         except AttributeError:
