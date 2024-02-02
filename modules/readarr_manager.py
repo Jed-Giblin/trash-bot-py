@@ -38,15 +38,6 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return MAIN_MENU
 
 
-async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    # TODO - Empty context
-    await update.callback_query.answer()
-    await context.bot.send_message(
-        text='Goodbye!', chat_id=update.effective_chat.id
-    )
-    return ConversationHandler.END
-
-
 async def manage_books(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await context.bot.send_message(
         text='Sorry, I haven"t set this up yet', chat_id=update.effective_chat.id
@@ -58,6 +49,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     # TODO - Empty context
     await update.callback_query.answer()
     await update.callback_query.message.edit_text('Goodbye', reply_markup=None)
+    del context.user_data['book_cache']
     return ConversationHandler.END
 
 

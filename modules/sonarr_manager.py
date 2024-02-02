@@ -75,6 +75,8 @@ async def add_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
     await check_and_clear_messages(context, update.effective_chat.id)
+    if 'search_results' in context.user_data:
+        del context.user_data['search_results']
     await update.callback_query.answer()
     await update.callback_query.message.edit_text('Goodbye', reply_markup=None)
     return ConversationHandler.END
@@ -220,6 +222,8 @@ async def track_add_progress(update: Update, context: ContextTypes.DEFAULT_TYPE)
     )
     await query.answer()
     await query.message.delete()
+    if 'search_results' in context.user_data:
+        del context.user_data['search_results']
     return ConversationHandler.END
 
 
