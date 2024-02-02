@@ -82,6 +82,9 @@ class TGUser:
     def __getitem__(self, key):
         return self.__dict__[key]
 
+    def __contains__(self, item):
+        return True if item in self.__dict__.keys() else False
+
     def __delitem__(self, key):
         del self.__dict__[key]
 
