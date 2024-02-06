@@ -12,14 +12,14 @@ async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'This is only allowed in group chats'
         )
         return None
-    new_word = update.message.text.split('/newword ')[-1]
-    if not len(new_word):
+    new_word = update.message.text.split('/newword ')
+    if len(new_word) == 1:
         await update.message.reply_text(
             'Empty words not allowed'
         )
         return None
 
-    word = re.sub("[\.\*\[\]\(\)\?]", "", new_word)
+    word = re.sub("[\.\*\[\]\(\)\?]", "", new_word[-1])
     context.chat_data.add_trash_word(word)
     await update.message.reply_text(
         'Added!'
@@ -33,14 +33,14 @@ async def del_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
             'This is only allowed in group chats'
         )
         return None
-    new_word = update.message.text.split('/newword ')[-1]
-    if not len(new_word):
+    new_word = update.message.text.split('/delword ')
+    if len(new_word) == 1:
         await update.message.reply_text(
             'Empty words not allowed'
         )
         return None
-    word = re.sub("[\.\*\[\]\(\)\?]", "", new_word)
-    context.chat_data.remove_trash_word(update.effective_chat.id, word)
+    word = re.sub("[\.\*\[\]\(\)\?]", "", new_word[-1])
+    context.chat_data.remove_trash_word(word)
     await update.message.reply_text(
         'Removed!'
     )
