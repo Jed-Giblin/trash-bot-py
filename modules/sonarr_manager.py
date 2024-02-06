@@ -235,8 +235,13 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
     try:
         tag = next(filter(lambda x: x.get("label") == f'tg:{user_id}:notify',
                           context.user_data.sonarr.get_tag()), None)
+        if not tag:
+            tag = context.user_data.sonarr.create_tag(label=f'tg:{user_id}:notify')
     except PyarrConnectionError:
-        tag = context.user_data.sonarr.create_tag(label=f'tg:{user_id}:notify')
+        await context.bot.send_message(
+            chat_id=user_id, text='Unable to setup notifications at this time. Couldn\'t talk to sonarr'
+        )
+        return None
     series = context.user_data.sonarr.get_series(id_=show_id)
     series['tags'].append(int(tag.get("id")))
     context.user_data.sonarr.upd_series(data=series)
@@ -299,7 +304,7 @@ async def manage_show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     ]
     tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_chat.id}:notify',
                       context.user_data.sonarr.get_tag_detail()), None)
-    if int(show_id) in tag.get("seriesIds"):
+    if tag and int(show_id) in tag.get("seriesIds"):
         buttons.append([InlineKeyboardButton(text='Remove Notifications', callback_data=f'remove_notif_{show_id}')])
     await context.bot.send_message(
         text='What would you like to do?',
