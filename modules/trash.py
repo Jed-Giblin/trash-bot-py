@@ -20,7 +20,7 @@ async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return None
 
     word = re.sub("[\.\*\[\]\(\)\?]", "", new_word)
-    context.chat_data.add_trash_word(update.effective_chat.id, word)
+    context.chat_data.add_trash_word(word)
     await update.message.reply_text(
         'Added!'
     )
@@ -48,6 +48,9 @@ async def del_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 
 async def handle_trash(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if not update.message:
+        return None
+
     msg_txt = update.message.text
     trash_words = context.chat_data.words
     if not len(trash_words):
