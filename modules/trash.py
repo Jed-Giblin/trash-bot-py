@@ -51,6 +51,9 @@ async def handle_trash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return None
 
+    if not hasattr(update.message, 'text'):
+        return None
+
     msg_txt = update.message.text
     trash_words = context.chat_data.words
     if not len(trash_words):
