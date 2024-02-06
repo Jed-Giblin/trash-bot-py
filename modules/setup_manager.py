@@ -255,6 +255,7 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return ConversationHandler.END
 
 
+
 async def share_access(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     Callback called once a user has input a share code to share access from another user
@@ -298,7 +299,7 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(add_radarr, pattern="^add_radarr"),
             CallbackQueryHandler(add_readarr, pattern="^add_readarr"),
             CallbackQueryHandler(print_config, pattern="^print_config"),
-            CallbackQueryHandler(start_share_access, pattern="^share_access"),
+            CallbackQueryHandler(start_share_access, pattern="^share_access")
         ],
         ADD_SONARR_HOSTNAME: [
             CallbackQueryHandler(stop, pattern="^quit$"),

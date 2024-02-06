@@ -249,6 +249,7 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
     templ['onGrab'] = True
     templ['onDownload'] = True
     templ['onSeriesDelete'] = True
+    templ['tags'] = [int(tag.get("id"))]
     templ['name'] = f'tg:{user_id}:notify'
     templ['fields'][0]['value'] = os.getenv('TOKEN')
     templ['fields'][1]['value'] = str(user_id)
@@ -292,10 +293,11 @@ async def manage_show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     show = context.user_data.sonarr.get_series(id_=show_id)
     await query.answer()
     await query.message.delete()
-    await context.bot.send_photo(
+    msg = await context.bot.send_photo(
         chat_id=update.effective_chat.id,
         photo=show.get("images")[0].get("remoteUrl")
     )
+    context.user_data.del_msg_list.append(msg.id)
     buttons = [
         [InlineKeyboardButton(text='Delete Show', callback_data=f'delete_{show_id}')],
         [InlineKeyboardButton(text='Download More Seasons', callback_data=f'man_season_{show_id}')],
@@ -447,5 +449,5 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(add_show_season, pattern=f'show_[0-9]+_s_[0-9]+')
         ]
     },
-    fallbacks=[CommandHandler("shows", entry_point)]
+    fallbacks=[CommandHandler("shows", entry_point)],
 )
