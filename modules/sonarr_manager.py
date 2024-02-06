@@ -258,8 +258,6 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
 async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
     query = update.callback_query
-    await query.answer()
-
     try:
         context.user_data.is_configured('sonarr_hostname')
     except ValueError:
@@ -277,6 +275,7 @@ async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
             InlineKeyboardButton(text=show['title'], callback_data=f'manage_{show["id"]}')
         )
     btns.append(InlineKeyboardButton(text="Quit! (not a show)", callback_data=f'quit'))
+    await query.answer()
     await update.callback_query.message.edit_text(
         text="Please choose a show to manage",
         reply_markup=InlineKeyboardMarkup([[btn] for btn in btns])
@@ -288,11 +287,11 @@ async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def manage_show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
     query = update.callback_query
-    await query.answer()
-    show_id = update.callback_query.data.split('_')[-1]
-    await query.message.delete()
 
+    show_id = update.callback_query.data.split('_')[-1]
     show = context.user_data.sonarr.get_series(id_=show_id)
+    await query.answer()
+    await query.message.delete()
     await context.bot.send_photo(
         chat_id=update.effective_chat.id,
         photo=show.get("images")[0].get("remoteUrl")
@@ -383,7 +382,8 @@ async def add_show_season(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mon_index = [x.get("seasonNumber") for x in series['seasons']].index(int(season_number))
     series['seasons'][mon_index]['monitored'] = True
     context.user_data.sonarr.upd_series(data=series)
-    context.user_data.sonarr.post_command(name='SeriesSearch', seriesId=show_id)
+    logger.info(f'ShowID: {show_id}, Type: {type(show_id)}')
+    context.user_data.sonarr.post_command(name='SeriesSearch', seriesId=int(show_id))
     await query.answer()
     await query.message.delete()
     await context.bot.send_message(chat_id=update.effective_chat.id,
