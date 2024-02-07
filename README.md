@@ -19,7 +19,26 @@ You can install the required packages with:
 `pip install -r requirements.txt`
 
 You may need some additional system / OS packages though. 
-    
+
+## Local Development
+
+On Telegram, message the BotFather (@BotFather) (Should be searchable and verified)
+
+Message him `/newbot` and follow his instructions
+
+Eventually, you will get a bot token.
+
+Put that token in a `.env` file
+``````
+TOKEN=your_token_goes_here
+``````
+
+In the `main.py` file, find the `modules` list, and replace `oncall` with your module. Make sure it follows the import pattern of the other modules!
+
+## Environmentals
+
+`token` is the only one you need if you disable `oncall`. Please disable `oncall`
+
 ## How does it work
 
 Telegram has an API to fetch/send messages. The bot, running out of `main.py` sets up a listener that constantly checks the API for new messages. This includes messages in any group/super chats its in, as well as direct messages. 
