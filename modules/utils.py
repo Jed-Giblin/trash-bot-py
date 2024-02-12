@@ -134,6 +134,7 @@ def update_user(wrapped_method):
     async def wrapper(*args, **kwargs):
         update, context = args
         context.user_data.full_name = f'{update.effective_user.first_name} {update.effective_user.last_name}'
+        context.user_data.id = update.effective_user.id
         return await wrapped_method(*args, **kwargs)
 
     return wrapper
