@@ -1,3 +1,4 @@
+import telegram
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ForceReply
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
@@ -27,11 +28,11 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
     :return:
     """
     reply_keyboard = [
-        ["Add Movies"],
-        ["Manage Movies"],
+        [InlineKeyboardButton("Add Movies", callback_data="add_movie")],
+        [InlineKeyboardButton("Manage Movies", callback_data="manage_movies")],
     ]
 
-    reply_markup = ReplyKeyboardMarkup(reply_keyboard, one_time_keyboard=True)
+    reply_markup = InlineKeyboardMarkup(reply_keyboard)
     await update.message.reply_text(
         "Please select an action", quote=True,
         reply_markup=reply_markup
@@ -46,11 +47,9 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
     :param context:
     :return:
     """
-    clear_cache(context.user_data)
+    await clear_cache(context.user_data, context)
     await update.callback_query.answer()
-    await context.bot.send_message(
-        text='Goodbye!', chat_id=update.effective_chat.id
-    )
+    await update.callback_query.message.edit_text('Goodbye', reply_markup=None)
     return ConversationHandler.END
 
 
@@ -68,10 +67,12 @@ async def add_movies(update: Update, context: ContextTypes.DEFAULT_TYPE):
     :param context:
     :return:
     """
-    await update.message.reply_text(
-        reply_to_message_id=update.message.id, quote=True,
+    qb = update.callback_query
+    await qb.answer()
+    context.user_data['del_msg_id'] = update.callback_query.message.id
+
+    await qb.message.edit_text(
         text="Whats the movie name you want to add? Send me a message with its name. You can also press quit.",
-        allow_sending_without_reply=True,
         reply_markup=InlineKeyboardMarkup([STOP_BUTTON])
     )
 
@@ -127,16 +128,19 @@ async def detail_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await context.bot.send_photo(update.effective_chat.id, photo=f)
     show_str = f'{movie.get("title")} ({movie.get("year")})'
     btns = [InlineKeyboardButton("Click here to add", callback_data=f"confirm_{movie_id}")]
-    await context.bot.send_message(
+    m = await context.bot.send_message(
         text=show_str,
         chat_id=update.effective_chat.id,
         reply_markup=InlineKeyboardMarkup([btns])
     )
+    context.user_data.del_msg_list.append(m.id)
     msg = """
-    If this wasn't the movie you wanted,you can: \n1. Click another from the list above\n2.Search again by typing in a name\n3. Quit"
+    If this wasn't the movie you wanted,you can: \n1. Click another from the list above\n2.Search again by typing in a name
+3. Quit by clicking quit above"
     """
-    await context.bot.send_message(
-        text=msg)
+    m = await context.bot.send_message(
+        text=msg, chat_id=update.effective_user.id)
+    context.user_data.del_msg_list.append(m.id)
     return CONFIRM_MOVIE_OR_SELECT_NEW
 
 
@@ -154,7 +158,7 @@ async def confirm_movie_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await context.bot.send_message(
             text=f'Unable to add movie. {ex}', chat_id=update.effective_chat.id
         )
-    clear_cache(context.user_data)
+    await clear_cache(context.user_data, context)
     return ConversationHandler.END
 
 
@@ -176,7 +180,7 @@ def write_file(path, filename, remote):
     return f'{path}/{filename}'
 
 
-def clear_cache(cache):
+async def clear_cache(cache, context):
     """
     Helper function to clear out stored tmp data during user interaction
     :param cache:
@@ -184,14 +188,21 @@ def clear_cache(cache):
     """
     cache['movie_cache'] = {}
     cache['downloads'] = []
+    if context.user_data.del_msg_list and len(context.user_data.del_msg_list):
+        for msg_id in context.user_data.del_msg_list:
+            try:
+                await context.bot.delete_message(chat_id=context.user_data.id, message_id=msg_id)
+            except telegram.error.BadRequest as ex:
+                pass
+            context.user_data.del_msg_list.remove(msg_id)
 
 
 CONVERSATION = ConversationHandler(
     entry_points=[CommandHandler(COMMAND, entry_point)],
     states={
         MAIN_MENU: [
-            MessageHandler(filters.Regex("^Add Movies$"), callback=add_movies),
-            MessageHandler(filters.Regex("^Manage Movies$"), callback=manage_movies),
+            CallbackQueryHandler(add_movies, pattern="^add_movie$"),
+            CallbackQueryHandler(manage_movies, pattern="^manage_movies$"),
         ],
         NEW_MOVIE_SEARCH: [
             MessageHandler(filters=filters.TEXT, callback=list_search_results),
