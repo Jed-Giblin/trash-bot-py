@@ -3,6 +3,7 @@ import logging
 import inspect
 import os
 
+from pyarr.exceptions import PyarrBadRequest
 import telegram.error
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
@@ -175,20 +176,27 @@ async def confirm_show_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
     show = context.user_data['show_cache'].get(show_id)
     del context.user_data['show_cache']
     await context.bot.send_message(text='Adding Show!', chat_id=update.effective_chat.id)
-    res = context.user_data.sonarr.add_series(
-        setup_show(show, f'tg:{update.effective_user.id}', context.user_data.sonarr), quality_profile_id=1,
-        monitored=True, root_dir='/tv', language_profile_id=1)
-    await send_and_delete(context, chat_id=update.effective_chat.id,
-                          message='Successfully added shows. Trying to search for the latest season now')
-    context.user_data.sonarr.post_command(name='SeriesSearch', seriesId=res.get("id"))
-    await send_and_delete(context, update.effective_chat.id, 'Episode searching is underway')
-    await context.bot.send_message(chat_id=update.effective_chat.id,
-                                   text='Are you interested in tracking this process?',
-                                   reply_markup=InlineKeyboardMarkup([
-                                       [InlineKeyboardButton("Yes!",
-                                                             callback_data=f"track_progress_{res.get('id')}_s_all")],
-                                       [InlineKeyboardButton("No! Its done when its done", callback_data="quit")]
-                                   ]))
+    try:
+        res = context.user_data.sonarr.add_series(
+            setup_show(show, f'tg:{update.effective_user.id}', context.user_data.sonarr), quality_profile_id=1,
+            monitored=True, root_dir='/tv', language_profile_id=1)
+        await send_and_delete(context, chat_id=update.effective_chat.id,
+                              message='Successfully added shows. Trying to search for the latest season now')
+        context.user_data.sonarr.post_command(name='SeriesSearch', seriesId=res.get("id"))
+        await send_and_delete(context, update.effective_chat.id, 'Episode searching is underway')
+        await context.bot.send_message(chat_id=update.effective_chat.id,
+                                       text='Are you interested in tracking this process?',
+                                       reply_markup=InlineKeyboardMarkup([
+                                           [InlineKeyboardButton("Yes!",
+                                                                 callback_data=f"track_progress_{res.get('id')}_s_all")],
+                                           [InlineKeyboardButton("No! Its done when its done", callback_data="quit")]
+                                       ]))
+    except PyarrBadRequest as e:
+        await send_and_delete(
+            context, chat_id=update.effective_chat.id,
+            message='Something went wrong, and its most likely just that the show already exists. Im going to send you some data, forward it to Jed if you want'
+        )
+        await context.bot.send_message(chat_id=update.effective_chat.id, message=str(e))
     return TRACK_PROGRESS
 
 
