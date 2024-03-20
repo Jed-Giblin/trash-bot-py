@@ -14,7 +14,11 @@ def manipulate_seasons(seasons, show_type):
     edited_seasons = [{**season, **SEASON_UPDATE} for season in sorted_seasons]
     # Shows that are over, we instead want the first season
     mon_index = -1 if show_type != "ended" else 1
-    edited_seasons[mon_index]['monitored'] = True
+    try:
+        #Somtimes, shows don't list the season0 for some reason
+        edited_seasons[mon_index]['monitored'] = True
+    except IndexError:
+        edited_seasons[mon_index - 1]['monitored'] = True
     return edited_seasons
 
 
