@@ -1,11 +1,12 @@
 from telegram import Update
 from telegram.ext import ContextTypes, CommandHandler, filters, MessageHandler
 import re
-from modules.utils import ModTypes
+from modules.utils import ModTypes, not_in_thread, not_in_support
 
 MOD_TYPE = ModTypes.COMMAND_DRIVEN
 
 
+@not_in_support
 async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type == "private":
         await update.message.reply_text(
@@ -27,6 +28,7 @@ async def add_new_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return None
 
 
+@not_in_support
 async def del_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.effective_chat.type == "private":
         await update.message.reply_text(
@@ -47,6 +49,7 @@ async def del_word(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return None
 
 
+@not_in_support
 async def handle_trash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if not update.message:
         return None
@@ -55,7 +58,6 @@ async def handle_trash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     trash_words = context.chat_data.words
     if not len(trash_words):
         return None
-    print(msg_txt)
     for word in trash_words:
         regex = f'^.*{word}.*$'
         print(regex)

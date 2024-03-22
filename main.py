@@ -5,6 +5,7 @@ import json
 import os
 import traceback
 
+import telegram.error
 from telegram.constants import ParseMode
 
 from modules.db import EnhancedPicklePersistence
@@ -13,7 +14,7 @@ from telegram.ext import CommandHandler, ApplicationBuilder, PicklePersistence, 
 from dotenv import load_dotenv
 from telegram.warnings import PTBUserWarning
 from modules.db_models import TGChat, TGUser
-from modules.utils import ModTypes, TrashLogger
+from modules.utils import ModTypes, TrashLogger, SUPPORT_CHAT_ID
 from warnings import filterwarnings
 
 logger = TrashLogger(name='Trash').logger
@@ -44,15 +45,38 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         f"Please forward this on"
     )
 
+    ticket_name = tb_list[-1].strip()
+    if 'TOPICS' not in context.bot_data:
+        context.bot_data['TOPICS'] = {}
+
+    print(context.bot_data['TOPICS'])
+
+    if ticket_name in context.bot_data.get('TOPICS').keys():
+        topic_id = context.bot_data.get('TOPICS')[ticket_name]
+        try:
+            await context.bot.reopenForumTopic(chat_id=SUPPORT_CHAT_ID, message_thread_id=topic_id)
+        except telegram.error.BadRequest:
+            pass
+    else:
+        topic = await context.bot.createForumTopic(
+            chat_id=SUPPORT_CHAT_ID,
+            name=ticket_name,
+        )
+        context.bot_data['TOPICS'][ticket_name] = topic.message_thread_id
+        topic_id = topic.message_thread_id
+
     # Finally, send the message
     await context.bot.send_message(
-        chat_id=update.effective_chat.id, text=message, parse_mode=ParseMode.HTML
+        chat_id=SUPPORT_CHAT_ID, text=message, parse_mode=ParseMode.HTML,
+        message_thread_id=topic_id
     )
+
+
 def main():
     # trash must always be last, because of the catchall
     modules = ['sonarr_manager', 'setup_manager', 'radarr_manager', 'readarr_manager', 'poll_manager', 'oncall_manager',
                'trash']
-    context_types = ContextTypes(context=CallbackContext, chat_data=TGChat, user_data=TGUser)
+    context_types = ContextTypes(context=CallbackContext, chat_data=TGChat, user_data=TGUser, bot_data=dict)
     persistance = EnhancedPicklePersistence(filepath='./db/db.pickle')
     app = ApplicationBuilder().token(os.environ.get("TOKEN")).context_types(context_types).persistence(
         persistance).build()

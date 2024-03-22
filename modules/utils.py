@@ -7,6 +7,7 @@ from telegram.ext import ContextTypes, ConversationHandler
 SEASON_UPDATE = {"monitored": False}
 premium_chat_whitelist = [int(-1001401984428)]
 STOP_BUTTON = [InlineKeyboardButton(text='Quit (Stop talking to me Trashbot)', callback_data=f'quit')]
+SUPPORT_CHAT_ID = -1001966556022
 
 
 def manipulate_seasons(seasons, show_type):
@@ -15,7 +16,7 @@ def manipulate_seasons(seasons, show_type):
     # Shows that are over, we instead want the first season
     mon_index = -1 if show_type != "ended" else 1
     try:
-        #Somtimes, shows don't list the season0 for some reason
+        # Somtimes, shows don't list the season0 for some reason
         edited_seasons[mon_index]['monitored'] = True
     except IndexError:
         edited_seasons[mon_index - 1]['monitored'] = True
@@ -125,6 +126,25 @@ def dm_only(wrapped_method):
             return ConversationHandler.END
         return await wrapped_method(*args, **kwargs)
 
+    return wrapper
+
+
+def not_in_thread(wrapped_method):
+    async def wrapper(*args: [Update, ContextTypes.DEFAULT_TYPE], **kwargs):
+        update, context = args
+        if update.message.is_topic_message:
+            return ConversationHandler.END
+        return await wrapped_method(*args, **kwargs)
+
+    return wrapper
+
+
+def not_in_support(wrapped_method):
+    async def wrapper(*args: [Update, ContextTypes.DEFAULT_TYPE], **kwargs):
+        update, context = args
+        if update.effective_chat.id == SUPPORT_CHAT_ID:
+            return ConversationHandler.END
+        return await wrapped_method(*args, **kwargs)
     return wrapper
 
 

@@ -4,7 +4,7 @@ import pytz
 from telegram import Update, ForceReply, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, CommandHandler, ConversationHandler, CallbackQueryHandler
 
-from modules.utils import ModTypes
+from modules.utils import ModTypes, dm_only
 from telegram import ReplyKeyboardMarkup, ReplyKeyboardRemove, Update
 from telegram.ext import (
     Application,
@@ -48,7 +48,7 @@ def remove_job_if_exists(name: str, context: ContextTypes.DEFAULT_TYPE) -> bool:
         job.schedule_removal()
     return True
 
-
+@dm_only
 async def schedule_poll(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     """Starts the conversation."""
     await update.message.reply_text(

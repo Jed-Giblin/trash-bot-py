@@ -68,7 +68,7 @@ class EnhancedPicklePersistence(PicklePersistence):
             self._load_users_from_json()
             self.chat_data = {}
             self._load_chats_from_json()
-            self.bot_data = self.context_types.bot_data()
+            self.bot_data = {}
             self.callback_data = None
             if os.path.exists('./db/db.json'):
                 os.rename('./db/db.json', './db/db.json.bak')

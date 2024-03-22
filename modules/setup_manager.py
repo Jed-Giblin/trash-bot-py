@@ -5,7 +5,7 @@ import os
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
-from modules.utils import ModTypes, STOP_BUTTON, dm_only, update_user
+from modules.utils import ModTypes, STOP_BUTTON, dm_only, update_user, not_in_thread
 from modules.readarr_api import ReadarrApi
 
 MOD_TYPE = ModTypes.CONVERSATION
@@ -40,6 +40,9 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [
             InlineKeyboardButton("Self Debug", callback_data="print_config"),
             InlineKeyboardButton("Share Access", callback_data="share_access")
+        ],
+        [
+            InlineKeyboardButton("Ping", callback_data="ping")
         ]
     ]
     reply_markup = InlineKeyboardMarkup(reply_keyboard)
@@ -290,6 +293,12 @@ async def print_config(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     return ConversationHandler.END
 
+@not_in_thread
+async def ping(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.callback_query.answer()
+    await update.message.reply_text('Pong!')
+    return ConversationHandler.END
+
 
 CONVERSATION = ConversationHandler(
     entry_points=[CommandHandler("config", entry_point)],
@@ -299,7 +308,8 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(add_radarr, pattern="^add_radarr"),
             CallbackQueryHandler(add_readarr, pattern="^add_readarr"),
             CallbackQueryHandler(print_config, pattern="^print_config"),
-            CallbackQueryHandler(start_share_access, pattern="^share_access")
+            CallbackQueryHandler(start_share_access, pattern="^share_access"),
+            CallbackQueryHandler(ping, pattern="^ping")
         ],
         ADD_SONARR_HOSTNAME: [
             CallbackQueryHandler(stop, pattern="^quit$"),

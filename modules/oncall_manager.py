@@ -12,7 +12,7 @@ from office365.sharepoint.files.file import File
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
-from modules.utils import ModTypes, premium_chat_whitelist, premium_only, dm_only, update_user
+from modules.utils import ModTypes, premium_chat_whitelist, premium_only, dm_only, update_user, not_in_support
 from openpyxl import load_workbook
 
 MOD_TYPE = ModTypes.CONVERSATION
@@ -25,6 +25,7 @@ SITE_PATH = os.getenv('SITE_PATH')
 
 
 @premium_only
+@not_in_support
 async def who_is_on_call(update: Update, context: ContextTypes.DEFAULT_TYPE):
     week = datetime.datetime.now(pytz.timezone('America/New_York')).date().isocalendar().week
     try:
@@ -90,24 +91,6 @@ async def cancel(update: Update, context: ContextTypes.DEFAULT_TYPE) -> int:
     return ConversationHandler.END
 
 
-async def check_ff(context: ContextTypes.DEFAULT_TYPE):
-    res = requests.post('https://sso.store.square-enix-games.com/api/validate-cart', json={
-        "email": os.getenv("EMAIL"), "store": "https://na.store.square-enix-games.com",
-        "cart": [{"id": "3054", "quantity": 1, "sku": "85038", "product_type": "physical", "variant": "3917"}],
-        "customer_id": int(os.getenv('CID'))}
-    )
-    if res:
-        try:
-            await context.bot.send_message(chat_id=677179937, text=str(res.json()))
-        except Exception:
-            pass
-    context.job_queue.run_once(
-        callback=check_ff,
-        when=300,
-        chat_id=int('-1001401984428'),
-        name='check_ff'
-    )
-
 
 async def fetch_xls(context: ContextTypes.DEFAULT_TYPE):
     """
@@ -155,33 +138,6 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
     await context.application.update_persistence()
 
 
-async def setup_downloader(context: ContextTypes.DEFAULT_TYPE):
-    """
-    Method to kick off the schedule for XLS downloads. Called by the bot on startup
-    :param context:
-    :return:
-    """
-    context.job_queue.run_once(
-        callback=fetch_xls,
-        when=5,
-        chat_id=int('-1001401984428'),
-        name='fetch_xls'
-    )
-    context.job_queue.run_once(
-        callback=check_ff,
-        when=5,
-        chat_id=int('-1001401984428'),
-        name='check_ff'
-    )
-    context.job_queue.run_daily(
-        callback=fetch_xls,
-        time=datetime.time(hour=0, minute=15,
-                           tzinfo=pytz.timezone('America/New_York')),
-        chat_id=int('-1001401984428'),
-        name='fetch_xls'
-    )
-
-
 CONVERSATION = ConversationHandler(
     entry_points=[CommandHandler("oc", oc_menu), CommandHandler("whoisoncall", who_is_on_call)],
     states={
@@ -192,5 +148,3 @@ CONVERSATION = ConversationHandler(
     },
     fallbacks=[CommandHandler("cancel", cancel)],
 )
-
-LOAD_FROM_DB = setup_downloader

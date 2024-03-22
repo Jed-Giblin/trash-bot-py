@@ -23,6 +23,8 @@ async def main():
     c = await app.persistence.get_chat_data()
     for id, chat in c.items():
         pprint.pprint(chat.__dict__)
+    b = await app.persistence.get_bot_data()
+    print(b)
 
 
 if __name__ == "__main__":
