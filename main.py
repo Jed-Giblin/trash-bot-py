@@ -7,6 +7,7 @@ import traceback
 
 import telegram.error
 from telegram.constants import ParseMode
+from telegram.request import HTTPXRequest
 
 from modules.db import EnhancedPicklePersistence
 from telegram import Update
@@ -79,7 +80,7 @@ def main():
     context_types = ContextTypes(context=CallbackContext, chat_data=TGChat, user_data=TGUser, bot_data=dict)
     persistance = EnhancedPicklePersistence(filepath='./db/db.pickle')
     app = ApplicationBuilder().token(os.environ.get("TOKEN")).context_types(context_types).persistence(
-        persistance).build()
+        persistance).request(HTTPXRequest(http_version="1.1")).build()
     app.add_error_handler(error_handler)
     for mod in modules:
         module = importlib.import_module(f'modules.{mod}')
