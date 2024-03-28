@@ -1,16 +1,17 @@
 import datetime
-import logging
 import inspect
+import logging
 import os
+from datetime import datetime, timedelta
 
-from pyarr.exceptions import PyarrBadRequest
 import telegram.error
-from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup
-from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
-    MessageHandler, filters
+from pyarr.exceptions import PyarrBadRequest
 # from modules.sonarr_api import SonarrApi
-from pyarr import SonarrAPI
 from pyarr.exceptions import PyarrConnectionError
+from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
+from telegram.ext import ContextTypes, ConversationHandler, CommandHandler, CallbackQueryHandler, \
+    MessageHandler, filters
+
 from modules.utils import ModTypes, manipulate_seasons, update_user, dm_only
 
 MOD_TYPE = ModTypes.CONVERSATION
@@ -28,6 +29,7 @@ CLEAN_SHOW_SEARCH = 21
 CHOOSE_SHOW_TO_MANAGE = 22
 MANAGE_SHOW = 23
 MANAGE_SHOW_SEASON = 24
+LIST_TV_SCHEDULES = 25
 
 
 def ordinal(n: int):
@@ -50,6 +52,7 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
     reply_keyboard = [
         [InlineKeyboardButton("Add Shows", callback_data="add_shows")],
         [InlineKeyboardButton("Manage Shows", callback_data="list_user_shows")],
+        [InlineKeyboardButton("TV Schedule", callback_data="list_tv_schedules")]
     ]
     reply_markup = InlineKeyboardMarkup(reply_keyboard)
     await update.message.reply_text(
@@ -293,6 +296,49 @@ async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
     return CHOOSE_SHOW_TO_MANAGE
 
 
+async def list_tv_schedules(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
+    query = update.callback_query
+    try:
+        context.user_data.is_configured('sonarr_hostname')
+    except ValueError:
+        await context.bot.send_message(
+            chat_id=update.message.from_user.id,
+            text="You have not configured a server.Exiting."
+        )
+        return ConversationHandler.END
+    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_user.id}',
+                      context.user_data.sonarr.get_tag_detail()), None)
+    update_info = []
+    for series_id in tag.get("seriesIds"):
+        show = context.user_data.sonarr.get_series(id_=series_id)
+        finale_air_date = datetime.strptime(show.get('lastAired'), '%Y-%m-%dT%H:%M:%SZ')
+        airing_threshold = datetime.utcnow() - timedelta(weeks=1)
+        if not show.get('ended') and finale_air_date > airing_threshold:
+            previous_episode = 'N/A' if not show.get('previousAiring') else datetime.strptime(
+                show.get('previousAiring'), '%Y-%m-%dT%H:%M:%SZ').strftime('%Y-%m-%d')
+            next_episode = 'TBD' if not show.get('nextAiring') else datetime.strptime(show.get('nextAiring'),
+                                                                                      '%Y-%m-%dT%H:%M:%SZ').strftime(
+                '%Y-%m-%d')
+            update_info.append({
+                'title': show.get('title'),
+                'previous_episode': previous_episode,
+                'next_episode': next_episode
+            })
+
+    update_info = sorted(update_info, key=lambda d: d['title'])
+    update_message = "\n\n".join(
+        [f"{x.get('title')}:\n  Previous Air Date: {x.get('previous_episode')}\n  Next Air Date: {x.get('next_episode')}"
+         for x in update_info])
+
+    await context.bot.send_message(
+        chat_id=update.effective_chat.id,
+        text=update_message
+    )
+
+    return START
+
+
 async def manage_show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
     query = update.callback_query
@@ -423,7 +469,8 @@ CONVERSATION = ConversationHandler(
     states={
         START: [
             CallbackQueryHandler(add_shows, pattern="^add_shows$"),
-            CallbackQueryHandler(list_user_shows, pattern="^list_user_shows")
+            CallbackQueryHandler(list_user_shows, pattern="^list_user_shows"),
+            CallbackQueryHandler(list_tv_schedules, pattern="^list_tv_schedules")
         ],
         NEW_SHOW_SEARCH: [
             CallbackQueryHandler(stop, pattern="^quit$"),
@@ -455,6 +502,10 @@ CONVERSATION = ConversationHandler(
         MANAGE_SHOW_SEASON: [
             CallbackQueryHandler(stop, pattern="^quit$"),
             CallbackQueryHandler(add_show_season, pattern=f'show_[0-9]+_s_[0-9]+')
+        ],
+        LIST_TV_SCHEDULES: [
+            CallbackQueryHandler(stop, pattern="^quit$"),
+            # CallbackQueryHandler(add_show_season, pattern=f'show_[0-9]+_s_[0-9]+')
         ]
     },
     fallbacks=[CommandHandler("shows", entry_point)],
