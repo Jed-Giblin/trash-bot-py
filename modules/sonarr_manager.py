@@ -196,7 +196,7 @@ async def confirm_show_add(update: Update, context: ContextTypes.DEFAULT_TYPE):
             context, chat_id=update.effective_chat.id,
             message='Something went wrong, and its most likely just that the show already exists. Im going to send you some data, forward it to Jed if you want'
         )
-        await context.bot.send_message(chat_id=update.effective_chat.id, message=str(e))
+        await context.bot.send_message(chat_id=update.effective_chat.id, text=str(e))
     return TRACK_PROGRESS
 
 
