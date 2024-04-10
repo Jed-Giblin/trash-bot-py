@@ -258,7 +258,7 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
     templ['onDownload'] = True
     templ['onSeriesDelete'] = True
     templ['tags'] = [int(tag.get("id"))]
-    templ['name'] = f'tg:{user_id}:notify'
+    templ['name'] = f'tg:{user_id}:notify:s:{show_id}'
     templ['fields'][0]['value'] = os.getenv('TOKEN')
     templ['fields'][1]['value'] = str(user_id)
     context.user_data.sonarr.add_notification(data=templ)
