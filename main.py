@@ -43,14 +43,11 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
         f"<pre>context.chat_data = {html.escape(str(context.chat_data))}</pre>\n\n"
         f"<pre>context.user_data = {html.escape(str(context.user_data))}</pre>\n\n"
         f"<pre>{html.escape(tb_string)}</pre>"
-        f"Please forward this on"
     )
 
     ticket_name = tb_list[-1].strip()
     if 'TOPICS' not in context.bot_data:
         context.bot_data['TOPICS'] = {}
-
-    print(context.bot_data['TOPICS'])
 
     if ticket_name in context.bot_data.get('TOPICS').keys():
         topic_id = context.bot_data.get('TOPICS')[ticket_name]
@@ -80,7 +77,7 @@ def main():
     context_types = ContextTypes(context=CallbackContext, chat_data=TGChat, user_data=TGUser, bot_data=dict)
     persistance = EnhancedPicklePersistence(filepath='./db/db.pickle')
     app = ApplicationBuilder().token(os.environ.get("TOKEN")).context_types(context_types).persistence(
-        persistance).request(HTTPXRequest(http_version="1.1")).build()
+        persistance).get_updates_http_version("1.1").http_version("1.1").build()
     app.add_error_handler(error_handler)
     for mod in modules:
         module = importlib.import_module(f'modules.{mod}')
@@ -101,6 +98,8 @@ def main():
         except AttributeError:
             pass
     try:
+        # Restart error handling on boot
+        app.bot_data['TOPICS'] = {}
         app.run_polling(allowed_updates=Update.ALL_TYPES)
     except Exception as ex:
         traceback.print_exc()
