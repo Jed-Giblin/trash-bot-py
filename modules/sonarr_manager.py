@@ -240,11 +240,12 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
     job = context.job
     show_id = job.data.get("show_id")
     user_id = job.data.get("chat_id")
+    tag_label = f'tg:{user_id}:notify:;s:{show_id}'
     try:
-        tag = next(filter(lambda x: x.get("label") == f'tg:{user_id}:notify',
+        tag = next(filter(lambda x: x.get("label") == tag_label,
                           context.user_data.sonarr.get_tag()), None)
         if not tag:
-            tag = context.user_data.sonarr.create_tag(label=f'tg:{user_id}:notify')
+            tag = context.user_data.sonarr.create_tag(label=tag_label)
     except PyarrConnectionError:
         await context.bot.send_message(
             chat_id=user_id, text='Unable to setup notifications at this time. Couldn\'t talk to sonarr'
@@ -258,7 +259,7 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
     templ['onDownload'] = True
     templ['onSeriesDelete'] = True
     templ['tags'] = [int(tag.get("id"))]
-    templ['name'] = f'tg:{user_id}:notify:s:{show_id}'
+    templ['name'] = tag_label
     templ['fields'][0]['value'] = os.getenv('TOKEN')
     templ['fields'][1]['value'] = str(user_id)
     context.user_data.sonarr.add_notification(data=templ)
@@ -311,7 +312,7 @@ async def manage_show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(text='Download More Seasons', callback_data=f'man_season_{show_id}')],
         [InlineKeyboardButton("Quit", callback_data="quit")]
     ]
-    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_chat.id}:notify',
+    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_chat.id}:notify:s:{show_id}',
                       context.user_data.sonarr.get_tag_detail()), None)
     if tag and int(show_id) in tag.get("seriesIds"):
         buttons.append([InlineKeyboardButton(text='Remove Notifications', callback_data=f'remove_notif_{show_id}')])

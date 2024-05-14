@@ -110,6 +110,25 @@ def premium_only(wrapped_method):
     return wrapper
 
 
+def chat_only(wrapped_method):
+    """
+        This decortor will force the handler to only allow the command to execute in a group chat only
+        :param wrapped_method:
+        :return:
+        """
+
+    async def wrapper(*args, **kwargs):
+        update, context = args
+        if update.effective_chat.type == "private":
+            await update.message.reply_text(
+                "That's only allowed in group chats.", quote=True
+            )
+            return ConversationHandler.END
+        return await wrapped_method(*args, **kwargs)
+
+    return wrapper
+
+
 def dm_only(wrapped_method):
     """
     This decortor will force the handler to only allow the command to execute in a DM and notify the user of such
@@ -145,6 +164,7 @@ def not_in_support(wrapped_method):
         if update.effective_chat.id == SUPPORT_CHAT_ID:
             return ConversationHandler.END
         return await wrapped_method(*args, **kwargs)
+
     return wrapper
 
 
