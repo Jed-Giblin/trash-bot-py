@@ -240,12 +240,13 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
     job = context.job
     show_id = job.data.get("show_id")
     user_id = job.data.get("chat_id")
-    tag_label = f'tg:{user_id}:notify:;s:{show_id}'
+    notif_profile_label = f'tg:{user_id}:notify:s:{show_id}'
+    show_notif_label = f'tg:{user_id}:notify'
     try:
-        tag = next(filter(lambda x: x.get("label") == tag_label,
+        tag = next(filter(lambda x: x.get("label") == show_notif_label,
                           context.user_data.sonarr.get_tag()), None)
         if not tag:
-            tag = context.user_data.sonarr.create_tag(label=tag_label)
+            tag = context.user_data.sonarr.create_tag(label=show_notif_label)
     except PyarrConnectionError:
         await context.bot.send_message(
             chat_id=user_id, text='Unable to setup notifications at this time. Couldn\'t talk to sonarr'
@@ -259,7 +260,7 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
     templ['onDownload'] = True
     templ['onSeriesDelete'] = True
     templ['tags'] = [int(tag.get("id"))]
-    templ['name'] = tag_label
+    templ['name'] = notif_profile_label
     templ['fields'][0]['value'] = os.getenv('TOKEN')
     templ['fields'][1]['value'] = str(user_id)
     context.user_data.sonarr.add_notification(data=templ)
@@ -312,7 +313,7 @@ async def manage_show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
         [InlineKeyboardButton(text='Download More Seasons', callback_data=f'man_season_{show_id}')],
         [InlineKeyboardButton("Quit", callback_data="quit")]
     ]
-    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_chat.id}:notify:s:{show_id}',
+    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_chat.id}:notify',
                       context.user_data.sonarr.get_tag_detail()), None)
     if tag and int(show_id) in tag.get("seriesIds"):
         buttons.append([InlineKeyboardButton(text='Remove Notifications', callback_data=f'remove_notif_{show_id}')])
@@ -352,6 +353,10 @@ async def remove_notifications(update: Update, context: ContextTypes.DEFAULT_TYP
     series = context.user_data.sonarr.get_series(id_=show_id)
     series['tags'].remove(tag.get("id"))
     context.user_data.sonarr.upd_series(data=series)
+    notif_profile_name = f'{tag.get("label")}:s:{show_id}'
+    notif_profile = next(
+        filter(lambda x: x.get("name") == notif_profile_name, context.user_data.sonarr.get_notification()))
+    context.user_data.sonarr.del_notification(id_=notif_profile.get("id"))
     await query.answer(text='Done!')
     await query.edit_message_text(text='Goodbye')
     return ConversationHandler.END
@@ -393,7 +398,6 @@ async def add_show_season(update: Update, context: ContextTypes.DEFAULT_TYPE):
     mon_index = [x.get("seasonNumber") for x in series['seasons']].index(int(season_number))
     series['seasons'][mon_index]['monitored'] = True
     context.user_data.sonarr.upd_series(data=series)
-    logger.info(f'ShowID: {show_id}, Type: {type(show_id)}')
     context.user_data.sonarr.post_command(name='SeriesSearch', seriesId=int(show_id))
     await query.answer()
     await query.message.delete()
