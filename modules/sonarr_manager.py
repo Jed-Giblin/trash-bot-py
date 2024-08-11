@@ -86,7 +86,11 @@ async def stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def search_sonarr_new(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
     query_str = update.message.text
-    await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=context.user_data['del_msg_id'])
+    try:
+        await context.bot.delete_message(chat_id=update.effective_chat.id, message_id=context.user_data['del_msg_id'])
+    except telegram.error.BadRequest:
+        context.user_data['del_msg_id'] = None
+
     loader = await context.bot.send_animation(chat_id=update.effective_chat.id, animation='./loading.gif')
     try:
         context.user_data.is_configured('sonarr_hostname')
