@@ -57,6 +57,9 @@ class EnhancedPicklePersistence(PicklePersistence):
             with self.filepath.open("rb") as file:
                 data = _BotUnpickler(self.bot, file).load()
             self.user_data = data["user_data"]
+            for user_id, tg in self.user_data.items():
+                if 'book_cache' in tg:
+                    tg['book_cache'] = {}
             self.chat_data = data["chat_data"]
             # For backwards compatibility with files not containing bot data
             self.bot_data = data.get("bot_data", self.context_types.bot_data())
