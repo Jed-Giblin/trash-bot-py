@@ -131,6 +131,7 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
     :param context:
     :return:
     """
+    logger.info("Loading XLS Data")
     wb = load_workbook('/tmp/roster.xlsx')
     ws: Worksheet = next(filter(lambda x: x.title == os.getenv('WS_NAME'), wb.worksheets))
     context.chat_data.oc_sched = []
