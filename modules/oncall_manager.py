@@ -31,7 +31,7 @@ async def who_is_on_call(update: Update, context: ContextTypes.DEFAULT_TYPE):
     week = datetime.datetime.now(pytz.timezone('America/New_York')).date().isocalendar().week
     try:
         # Its the week number minus 2 (Header Row, Missing first year)
-        record = context.chat_data.oc_sched[week - 2]
+        record = context.chat_data.oc_sched[week - 1]
         msg = f'{record[0]} is on call this week' if record else 'Good question'
         await update.message.reply_text(
             text=msg
@@ -142,7 +142,6 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
         user.oc_sched = []
 
     rows = iter(ws.rows)
-    next(rows)
     next(rows)
     for row in rows:
         record = [str(c.value) for c in row[0:4]]
