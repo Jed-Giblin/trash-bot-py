@@ -9,6 +9,7 @@ import datetime
 from office365.runtime.auth.client_credential import ClientCredential
 from office365.sharepoint.client_context import ClientContext
 from office365.sharepoint.files.file import File
+from openpyxl.worksheet.worksheet import Worksheet
 from telegram import Update, ReplyKeyboardMarkup, InlineKeyboardButton, InlineKeyboardMarkup, ReplyKeyboardRemove
 from telegram.ext import ContextTypes, Application, ConversationHandler, CommandHandler, CallbackQueryHandler, \
     MessageHandler, filters
@@ -108,6 +109,26 @@ async def fetch_xls(context: ContextTypes.DEFAULT_TYPE):
 
     await load_xls_data(context)
 
+async def clean_and_setup_new_dowload(context: ContextTypes.DEFAULT_TYPE):
+    current_oc = []
+    for record in context.chat_data.oc_sched:
+        if datetime.datetime.now(pytz.timezone("America/New_York")) > record[3]:
+            current_oc.append(record)
+    context.chat_data.oc_sched = current_oc
+    context.job_queue.run_monthly(
+        callback=fetch_xls,
+        day=1,
+        when=datetime.time(hour=0, minute=1, second=1),
+        chat_id=int('-1001401984428'),
+        name='fetch_xls'
+    )
+
+    context.job_queue.run_once(
+        callback=fetch_xls,
+        when=5,
+        chat_id=int('-1001401984428'),
+        name='fetch_xls'
+    )
 
 async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
     """
@@ -116,7 +137,7 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
     :return:
     """
     wb = load_workbook('/tmp/roster.xlsx')
-    ws = next(filter(lambda x: x.title == os.getenv('WS_NAME'), wb.worksheets))
+    ws: Worksheet = next(filter(lambda x: x.title == os.getenv('WS_NAME'), wb.worksheets))
     context.chat_data.oc_sched = []
     um = {}
     udl = context.application.user_data
@@ -127,7 +148,7 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
     rows = iter(ws.rows)
     next(rows)
     for row in rows:
-        record = [str(c.value) for c in row]
+        record = [str(c.value) for c in row[0:3]]
         record.append(str(True) if datetime.datetime.strptime(record[-1],
                                                               "%Y-%m-%d %H:%M:%S").date() > datetime.datetime.now().date() else str(
             False))
@@ -148,3 +169,5 @@ CONVERSATION = ConversationHandler(
     },
     fallbacks=[CommandHandler("cancel", cancel)],
 )
+
+LOAD_FROM_DB = clean_and_setup_new_dowload

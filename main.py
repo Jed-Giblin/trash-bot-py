@@ -94,8 +94,10 @@ def main():
 
         logger.info(f"Loaded Module: {mod}, Type: {module.MOD_TYPE}")
         try:
-            app.job_queue.run_once(module.LOAD_FROM_DB, 5)
-        except AttributeError:
+            if hasattr(module, 'LOAD_FROM_DB'):
+                app.job_queue.run_once(module.LOAD_FROM_DB, 5)
+        except AttributeError as e:
+            print(e)
             pass
     try:
         # Restart error handling on boot
