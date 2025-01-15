@@ -144,11 +144,12 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
     rows = iter(ws.rows)
     next(rows)
     for row in rows:
-        record = [str(c.value) for c in row[0:3]]
+        record = [str(c.value) for c in row[0:4]]
         logger.info(record)
-        record.append(str(True) if datetime.datetime.strptime(record[-1],
-                                                              "%Y-%m-%d %H:%M:%S").date() > datetime.datetime.now().date() else str(
-            False))
+        if datetime.datetime.strptime(record[-1],"%Y-%m-%d %H:%M:%S").date() > datetime.datetime.now().date():
+            record.append(str(True))
+        else:
+            record.append(str(False))
         context.chat_data.oc_sched.append(record)
         if record[0] in um:
             um[record[0]].oc_sched.append(record)
