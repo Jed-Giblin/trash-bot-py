@@ -143,6 +143,7 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
 
     rows = iter(ws.rows)
     next(rows)
+    next(rows)
     for row in rows:
         record = [str(c.value) for c in row[0:4]]
         logger.info(record)
