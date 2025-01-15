@@ -110,11 +110,6 @@ async def fetch_xls(context: ContextTypes.DEFAULT_TYPE):
     await load_xls_data(context)
 
 async def clean_and_setup_new_dowload(context: ContextTypes.DEFAULT_TYPE):
-    current_oc = []
-    for record in context.chat_data.oc_sched:
-        if datetime.datetime.now(pytz.timezone("America/New_York")) > record[3]:
-            current_oc.append(record)
-    context.chat_data.oc_sched = current_oc
     context.job_queue.run_monthly(
         callback=fetch_xls,
         day=1,
