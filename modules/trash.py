@@ -59,8 +59,10 @@ async def handle_trash(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return None
 
     msg_txt = update.message.text if update.message.text else update.message.caption if update.message.caption else ''
+    print(msg_txt)
     mid_regex = "[\s]?|[\^\s]".join(context.chat_data.words)
     regex = f'[\^\s]{mid_regex}[\s]?'
+    print(regex)
     if re.search(regex, msg_txt, re.IGNORECASE):
         await update.message.reply_text(
             'Trash!'
