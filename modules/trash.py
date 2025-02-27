@@ -64,9 +64,11 @@ async def handle_trash(update: Update, context: ContextTypes.DEFAULT_TYPE):
     regex = f'[\^\s]{mid_regex}[\s]?'
     print(regex)
     if re.search(regex, msg_txt, re.IGNORECASE):
-        await update.message.reply_text(
+        print("Sending trash")
+        res = await update.message.reply_text(
             'Trash!'
         )
+        print(res)
         return None
     return None
 
