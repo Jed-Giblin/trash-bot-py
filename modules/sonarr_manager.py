@@ -2,6 +2,7 @@ import datetime
 import logging
 import inspect
 import os
+import re
 
 from pyarr.exceptions import PyarrBadRequest
 import telegram.error
@@ -11,7 +12,7 @@ from telegram.ext import ContextTypes, Application, ConversationHandler, Command
 # from modules.sonarr_api import SonarrApi
 from pyarr import SonarrAPI
 from pyarr.exceptions import PyarrConnectionError
-from modules.utils import ModTypes, manipulate_seasons, update_user, dm_only
+from modules.utils import ModTypes, manipulate_seasons, update_user, dm_only, sonarr_configured
 
 MOD_TYPE = ModTypes.CONVERSATION
 logger = logging.getLogger('Trash')
@@ -24,7 +25,7 @@ SHOW_PICKER = 12
 CONFIRM_SHOW = 13
 TRACK_PROGRESS = 14
 
-CLEAN_SHOW_SEARCH = 21
+MANAGE_SHOW_SUBMENU = 21
 CHOOSE_SHOW_TO_MANAGE = 22
 MANAGE_SHOW = 23
 MANAGE_SHOW_SEASON = 24
@@ -38,6 +39,7 @@ def ordinal(n: int):
     return str(n) + suffix
 
 
+@sonarr_configured
 @dm_only
 @update_user
 async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -49,7 +51,7 @@ async def entry_point(update: Update, context: ContextTypes.DEFAULT_TYPE):
     """
     reply_keyboard = [
         [InlineKeyboardButton("Add Shows", callback_data="add_shows")],
-        [InlineKeyboardButton("Manage Shows", callback_data="list_user_shows")],
+        [InlineKeyboardButton("Manage Shows", callback_data="manage_shows_submenu")],
     ]
     reply_markup = InlineKeyboardMarkup(reply_keyboard)
     await update.message.reply_text(
@@ -270,22 +272,49 @@ async def setup_notifications(context: ContextTypes.DEFAULT_TYPE):
     context.user_data.sonarr.add_notification(data=templ)
 
 
+async def manage_shows_submenu(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
+    query = update.callback_query
+
+    await query.answer()
+    await update.callback_query.message.edit_text(
+        text="You can search a show to edit, or click \"My Shows\" below to see only your shows",
+        reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton('My Shows', callback_data='list_user_shows')]]),
+    )
+
+    return MANAGE_SHOW_SUBMENU
+
+async def search_sonarr_exists(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
+    sonarr: SonarrAPI = context.user_data.sonarr
+    query_str = update.message.text
+
+    loader = await context.bot.send_animation(chat_id=update.effective_chat.id, animation='./loading.gif')
+
+    buttons = []
+    for show in sonarr.get_series():
+        if re.match(f".*{query_str}.*", show.get("title"), re.IGNORECASE):
+            show_id = str(show['id'])
+            buttons.append(InlineKeyboardButton(show["title"], callback_data=f"manage_{show_id}"))
+
+    buttons.append(InlineKeyboardButton("Quit (not a show)", callback_data='quit'))
+    markup = [[btn] for btn in buttons]
+    await loader.delete()
+    await update.message.reply_text(
+        text='You can click any of these.',
+        reply_markup=InlineKeyboardMarkup(markup))
+    return CHOOSE_SHOW_TO_MANAGE
+
 async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
     query = update.callback_query
-    try:
-        context.user_data.is_configured('sonarr_hostname')
-    except ValueError:
-        await context.bot.send_message(
-            chat_id=update.message.from_user.id,
-            text="You have not configured a server.Exiting."
-        )
-        return ConversationHandler.END
-    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_user.id}',
-                      context.user_data.sonarr.get_tag_detail()), None)
+    sonarr: SonarrAPI = context.user_data.sonarr
+    await query.answer()
     btns = []
-    for series_id in tag.get("seriesIds"):
-        show = context.user_data.sonarr.get_series(id_=series_id)
+    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_user.id}',
+                      sonarr.get_tag_detail()), None)
+    for series_id in sorted(tag.get("seriesIds")):
+        show = sonarr.get_series(id_=series_id)
         btns.append(
             InlineKeyboardButton(text=show['title'], callback_data=f'manage_{show["id"]}')
         )
@@ -295,13 +324,13 @@ async def list_user_shows(update: Update, context: ContextTypes.DEFAULT_TYPE):
         text="Please choose a show to manage",
         reply_markup=InlineKeyboardMarkup([[btn] for btn in btns])
     )
-
     return CHOOSE_SHOW_TO_MANAGE
 
 
 async def manage_show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     logger.debug(f'Firing callback: {inspect.stack()[0][3]}')
     query = update.callback_query
+    sonarr: SonarrAPI = context.user_data.sonarr
 
     show_id = update.callback_query.data.split('_')[-1]
     show = context.user_data.sonarr.get_series(id_=show_id)
@@ -313,14 +342,19 @@ async def manage_show_menu(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
     context.user_data.del_msg_list.append(msg.id)
     buttons = [
-        [InlineKeyboardButton(text='Delete Show', callback_data=f'delete_{show_id}')],
         [InlineKeyboardButton(text='Download More Seasons', callback_data=f'man_season_{show_id}')],
         [InlineKeyboardButton("Quit", callback_data="quit")]
     ]
-    tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_chat.id}:notify',
-                      context.user_data.sonarr.get_tag_detail()), None)
-    if tag and int(show_id) in tag.get("seriesIds"):
-        buttons.append([InlineKeyboardButton(text='Remove Notifications', callback_data=f'remove_notif_{show_id}')])
+    notify_tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_chat.id}:notify',
+                             context.user_data.sonarr.get_tag_detail()), None)
+    owner_tag = next(filter(lambda x: x.get("label") == f'tg:{update.effective_user.id}',
+                            sonarr.get_tag_detail()), None)
+    if owner_tag and owner_tag.get("id") in show.get("tags", []):
+        buttons.insert(0,
+            [InlineKeyboardButton(text="Delete Show", callback_data=f'delete_{show_id}')]
+        )
+    if notify_tag and int(show_id) in notify_tag.get("seriesIds"):
+        buttons.insert(0, [InlineKeyboardButton(text='Remove Notifications', callback_data=f'remove_notif_{show_id}')])
     await context.bot.send_message(
         text='What would you like to do?',
         chat_id=update.effective_chat.id,
@@ -432,7 +466,7 @@ CONVERSATION = ConversationHandler(
     states={
         START: [
             CallbackQueryHandler(add_shows, pattern="^add_shows$"),
-            CallbackQueryHandler(list_user_shows, pattern="^list_user_shows")
+            CallbackQueryHandler(manage_shows_submenu, pattern="^manage_shows_submenu")
         ],
         NEW_SHOW_SEARCH: [
             CallbackQueryHandler(stop, pattern="^quit$"),
@@ -450,6 +484,10 @@ CONVERSATION = ConversationHandler(
             CallbackQueryHandler(search_sonarr_new, pattern="^search_results$"),
             CallbackQueryHandler(confirm_show_add, pattern="^confirm_[0-9]+$"),
             CallbackQueryHandler(show_clicked, pattern="^add_show_[0-9]+$")
+        ],
+        MANAGE_SHOW_SUBMENU: [
+            CallbackQueryHandler(list_user_shows, pattern="^list_user_shows"),
+            MessageHandler(filters=filters.TEXT, callback=search_sonarr_exists)
         ],
         CHOOSE_SHOW_TO_MANAGE: [
             CallbackQueryHandler(stop, pattern="^quit$"),

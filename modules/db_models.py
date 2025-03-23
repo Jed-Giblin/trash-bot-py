@@ -92,6 +92,8 @@ class TGUser:
     def sonarr(self):
         if not self._sonarr:
             self._sonarr = SonarrAPI(**self.get_sonarr_settings())
+        if self._sonarr.api_key != self.sonarr_token:
+            self._sonarr = SonarrAPI(**self.get_sonarr_settings())
         return self._sonarr
 
     @staticmethod

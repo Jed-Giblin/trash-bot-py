@@ -75,6 +75,8 @@ class EnhancedPicklePersistence(PicklePersistence):
             self.callback_data = None
             if os.path.exists('./db/db.json'):
                 os.rename('./db/db.json', './db/db.json.bak')
+            else:
+                os.makedirs('./db')
             self._dump_singlefile()
         except pickle.UnpicklingError as exc:
             filename = self.filepath.name

@@ -109,6 +109,19 @@ def premium_only(wrapped_method):
 
     return wrapper
 
+def sonarr_configured(wrapped_method):
+    async def wrapper(*args, **kwargs):
+        update, context = args
+        try:
+            context.user_data.is_configured('sonarr_hostname')
+        except ValueError:
+            await context.bot.send_message(
+                chat_id=update.message.from_user.id,
+                text="You have not configured a server.Exiting."
+            )
+            return ConversationHandler.END
+        return await wrapped_method(*args, **kwargs)
+    return wrapper
 
 def chat_only(wrapped_method):
     """
