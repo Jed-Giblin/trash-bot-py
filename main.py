@@ -22,6 +22,8 @@ logger = TrashLogger(name='Trash').logger
 load_dotenv()
 filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
 
+def chunkstring(string, length):
+    return (string[0+i:length+i] for i in range(0, len(string), length))
 
 async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
     """Log the error and send a telegram message to notify the developer."""
@@ -36,14 +38,16 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
     # Build the message with some markup and additional information about what happened.
     # You might need to add some logic to deal with messages longer than the 4096 character limit.
     update_str = update.to_dict() if isinstance(update, Update) else str(update)
-    message = (
+    message = [
         "An exception was raised while handling an update\n"
         f"<pre>update = {html.escape(json.dumps(update_str, indent=2, ensure_ascii=False))}"
         "</pre>\n\n"
         f"<pre>context.chat_data = {html.escape(str(context.chat_data))}</pre>\n\n"
         f"<pre>context.user_data = {html.escape(str(context.user_data))}</pre>\n\n"
-        f"<pre>{html.escape(tb_string)}</pre>"
-    )
+    ]
+    for c in chunkstring(html.escape(tb_string), 2048):
+        message.append(f"<pre>{c}</pre>")
+
 
     ticket_name = tb_list[-1].strip()
     if 'TOPICS' not in context.bot_data:
@@ -65,7 +69,7 @@ async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> N
 
     # Finally, send the message
     await context.bot.send_message(
-        chat_id=SUPPORT_CHAT_ID, text=message, parse_mode=ParseMode.HTML,
+        chat_id=SUPPORT_CHAT_ID, text=tuple(message), parse_mode=ParseMode.HTML,
         message_thread_id=topic_id
     )
 
