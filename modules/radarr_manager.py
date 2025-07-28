@@ -220,5 +220,5 @@ CONVERSATION = ConversationHandler(
             MessageHandler(filters=filters.TEXT, callback=list_search_results)
         ]
     },
-    fallbacks=[CommandHandler("shows", entry_point)]
+    fallbacks=[CommandHandler("movies", entry_point)]
 )
