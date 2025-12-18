@@ -1,11 +1,12 @@
 import logging
+import os
 
 import telegram
 from telegram import Update, InlineKeyboardButton
 from telegram.ext import ContextTypes, ConversationHandler
 
 SEASON_UPDATE = {"monitored": False}
-premium_chat_whitelist = [int(-1001401984428)]
+premium_chat_whitelist = [int(os.getenv("PREMIUM_CHAT_ID"))]
 STOP_BUTTON = [InlineKeyboardButton(text='Quit (Stop talking to me Trashbot)', callback_data=f'quit')]
 SUPPORT_CHAT_ID = -1001966556022
 
@@ -104,7 +105,7 @@ def premium_only(wrapped_method):
                 pass
         if not wl:
             print("User not in WL")
-            return None
+            return await wrapped_method(*args, **kwargs)
         return await wrapped_method(*args, **kwargs)
 
     return wrapper

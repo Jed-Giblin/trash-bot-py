@@ -1,3 +1,5 @@
+from dotenv import load_dotenv
+load_dotenv()
 import asyncio
 import html
 import importlib
@@ -12,14 +14,14 @@ from telegram.request import HTTPXRequest
 from modules.db import EnhancedPicklePersistence
 from telegram import Update
 from telegram.ext import CommandHandler, ApplicationBuilder, PicklePersistence, ContextTypes, CallbackContext
-from dotenv import load_dotenv
+
 from telegram.warnings import PTBUserWarning
 from modules.db_models import TGChat, TGUser
 from modules.utils import ModTypes, TrashLogger, SUPPORT_CHAT_ID
 from warnings import filterwarnings
 
 logger = TrashLogger(name='Trash').logger
-load_dotenv()
+
 filterwarnings(action="ignore", message=r".*CallbackQueryHandler", category=PTBUserWarning)
 
 def chunkstring(string, length):

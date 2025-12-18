@@ -5,3 +5,4 @@ venv/
 *.pyc
 **/*.pyc
 tmp/
+o365_token.txt

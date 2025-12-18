@@ -14,6 +14,7 @@ class TGChat:
         self.all = kwargs.get("all", [])
         self.name = kwargs.get("name", "")
         self.oc_sched = kwargs.get("oc_sched", [])
+        self.im_oc = kwargs.get("im_oc", [])
         self.members = kwargs.get("members", [])
 
     def __setstate__(self, repr):
@@ -22,6 +23,7 @@ class TGChat:
         values = {
             'members': [],
             'oc_sched': [],
+            'im_oc': []
         }
         for field in values.keys():
             if field not in repr:
