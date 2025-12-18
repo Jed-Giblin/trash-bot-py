@@ -39,14 +39,14 @@ async def who_is_on_call(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if str(item[2]) == today_str:
                 im_record = item
                 break
-        msg = f'{record[0]} is on call this week' if record else 'Good question'
+        msg = f'T3: {record[0]} is on call this week' if record else 'Good question'
         if im_record and im_record != ['None','None','None']:
             utc_ts = update.message.date
             eastern_ts = utc_ts.astimezone(pytz.timezone('America/New_York'))
             if datetime.time(7, 30) <= eastern_ts.time() <= datetime.time(19, 30):
-                msg += f'\n{im_record[0]} is on call right now as IM'
+                msg += f'\n\n\n\nIM: {im_record[0]} is on call right now as IM'
             else:
-                msg += f'\n{im_record[1]} is on call tomorrow as IM'
+                msg += f'\n\n\n\nIM: {im_record[1]} is on call tomorrow as IM'
         await update.message.reply_text(
             text=msg
         )
