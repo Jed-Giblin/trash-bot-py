@@ -127,7 +127,7 @@ async def detail_movie(update: Update, context: ContextTypes.DEFAULT_TYPE):
         with open(f'./tmp/movies/{movie_id}.jpg', 'rb') as f:
             await context.bot.send_photo(update.effective_chat.id, photo=f)
     show_str = f'{movie.get("title")} ({movie.get("year")})'
-    btns = [InlineKeyboardButton("Click here to add", callback_data=f"confirm_{movie_id}")]
+    btns = [InlineKeyboardButton("Click here to add", callback_data=f"mov_confirm_{movie_id}")]
     m = await context.bot.send_message(
         text=show_str,
         chat_id=update.effective_chat.id,
@@ -215,7 +215,7 @@ CONVERSATION = ConversationHandler(
         ],
         CONFIRM_MOVIE_OR_SELECT_NEW: [
             CallbackQueryHandler(stop, pattern="^quit$"),
-            CallbackQueryHandler(confirm_movie_add, pattern="^confirm_[0-9]+$"),
+            CallbackQueryHandler(confirm_movie_add, pattern="^mov_confirm_[0-9]+$"),
             CallbackQueryHandler(detail_movie, pattern='^detail_[0-9]+$'),
             MessageHandler(filters=filters.TEXT, callback=list_search_results)
         ]
