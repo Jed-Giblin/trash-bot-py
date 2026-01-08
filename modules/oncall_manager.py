@@ -173,10 +173,13 @@ async def load_xls_data(context: ContextTypes.DEFAULT_TYPE):
 
     ws2: Worksheet = next(filter(lambda x: x.title == os.getenv('WS_NAME_2'), wb.worksheets))
     rows = iter(ws2.rows)
-    next(rows)
-    for row in rows:
-        record = [str(c.value) for c in row[0:3]]
-        context.chat_data.im_oc.append(record)
+    try:
+        next(rows)
+        for row in rows:
+            record = [str(c.value) for c in row[0:3]]
+            context.chat_data.im_oc.append(record)
+    except Exception as ex:
+        pass
 
 
     await context.application.update_persistence()
